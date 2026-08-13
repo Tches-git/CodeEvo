@@ -1,0 +1,86 @@
+{
+  "cases": 40,
+  "dataset_sha256": "74dcc14f04b7d384aa90a161f7b66d812b5a875b6920e7c42420af63f36cdc3a",
+  "integrity": {
+    "cases": 40,
+    "duplicate_diffs": {},
+    "errors": [],
+    "repositories": 14,
+    "repository_leakage": {},
+    "split_cases": {
+      "holdout": 8,
+      "train": 24,
+      "validation": 8
+    },
+    "split_repositories": {
+      "holdout": 3,
+      "train": 7,
+      "validation": 4
+    },
+    "valid": true
+  },
+  "integrity_valid": true,
+  "name": "codeevo-vul4j-derived",
+  "repositories": 14,
+  "schema_version": 1,
+  "skipped": [
+    {
+      "reason": "benchmark fixes must have exactly one parent commit",
+      "vul_id": "VUL4J-1"
+    },
+    {
+      "reason": "source returned HTTP 404 for https://api.github.com/repos/apache/xmlgraphics-batik/license",
+      "vul_id": "VUL4J-2"
+    },
+    {
+      "reason": "patch cannot produce both risk and clean scoreable cases",
+      "vul_id": "VUL4J-8"
+    },
+    {
+      "reason": "reverse patch has no automatically localizable production Java lines",
+      "vul_id": "VUL4J-10"
+    },
+    {
+      "reason": "source returned HTTP 422 for https://api.github.com/repos/apache/sling/commits/7d2365a248943071a44d8495655186e4f14ea294",
+      "vul_id": "VUL4J-23"
+    },
+    {
+      "reason": "patch cannot produce both risk and clean scoreable cases",
+      "vul_id": "VUL4J-24"
+    },
+    {
+      "reason": "reverse patch has no automatically localizable production Java lines",
+      "vul_id": "VUL4J-34"
+    },
+    {
+      "reason": "NVD has no CVSS severity for CVE-2015-8581",
+      "vul_id": "VUL4J-37"
+    },
+    {
+      "reason": "benchmark fixes must have exactly one parent commit",
+      "vul_id": "VUL4J-38"
+    },
+    {
+      "reason": "reverse patch has no automatically localizable production Java lines",
+      "vul_id": "VUL4J-40"
+    },
+    {
+      "reason": "patch cannot produce both risk and clean scoreable cases",
+      "vul_id": "VUL4J-41"
+    }
+  ],
+  "source_kinds": [
+    "benchmark-derived"
+  ],
+  "split_cases": {
+    "holdout": 8,
+    "train": 24,
+    "validation": 8
+  },
+  "split_repositories": {
+    "holdout": 3,
+    "train": 7,
+    "validation": 4
+  },
+  "version": "1.0.0"
+}

@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeevo"
+version = "0.8.0"
+description = "Evaluation-gated multi-agent code review platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{name = "Tches-git"}]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "pydantic>=2.9,<3",
+  "SQLAlchemy>=2,<3",
+  "alembic>=1.13,<2",
+  "psycopg[binary]>=3.1,<4",
+  "redis>=5,<7",
+  "PyJWT[crypto]>=2.8,<3",
+  "opentelemetry-sdk>=1.24,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.24,<2",
+  "tree-sitter-language-pack>=1.14,<2",
+  "certifi>=2025.1",
+  "truststore>=0.10,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/Tches-git/CodeEvo"
+Repository = "https://github.com/Tches-git/CodeEvo"
+Issues = "https://github.com/Tches-git/CodeEvo/issues"
+
+[project.scripts]
+codeevo = "codeevo.api:run"
+codeevo-migrate = "codeevo.database:main"
+codeevo-seed-annotation-demo = "codeevo.annotation_demo:main"
+codeevo-import-vul4j = "codeevo.benchmark_cli:main"
+codeevo-benchmark = "codeevo.benchmark_runner:main"
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27,<1",
+  "ruff>=0.12,<1",
+]
+
+[tool.setuptools.packages.find]
+include = ["codeevo*"]
+
+[tool.setuptools.package-data]
+codeevo = ["migrations/*.mako", "web/*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E501"]

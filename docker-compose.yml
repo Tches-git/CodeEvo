@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codeevo
+      POSTGRES_USER: codeevo
+      POSTGRES_PASSWORD: ${CODEEVO_POSTGRES_PASSWORD:?set CODEEVO_POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeevo"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  codeevo:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      CODEEVO_HOST: 0.0.0.0
+      CODEEVO_DATABASE_URL: postgresql://codeevo:${CODEEVO_POSTGRES_PASSWORD}@postgres:5432/codeevo
+      CODEEVO_REDIS_URL: redis://redis:6379/0
+      CODEEVO_ASYNC_WORKERS: 4
+      CODEEVO_SKILLS_DIR: /app/skills
+      CODEEVO_AUTH_REQUIRED: "true"
+      CODEEVO_AUTH_SECRET: ${CODEEVO_AUTH_SECRET:?set a random CODEEVO_AUTH_SECRET of at least 32 bytes}
+      CODEEVO_BOOTSTRAP_ADMIN_USERNAME: ${CODEEVO_BOOTSTRAP_ADMIN_USERNAME:?set CODEEVO_BOOTSTRAP_ADMIN_USERNAME}
+      CODEEVO_BOOTSTRAP_ADMIN_PASSWORD: ${CODEEVO_BOOTSTRAP_ADMIN_PASSWORD:?set a strong CODEEVO_BOOTSTRAP_ADMIN_PASSWORD}
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

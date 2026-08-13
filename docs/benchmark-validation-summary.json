@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "dataset": {
+    "name": "Vul4J benchmark-derived validation subset",
+    "sha256": "b4c7d8a80539fa3bcd5ebbd2b250a9fa42f58649982a97df0853424830cb3760",
+    "cases": 8,
+    "repositories": 4,
+    "risk_cases": 4,
+    "clean_cases": 4,
+    "split": "validation",
+    "holdout_used": false
+  },
+  "model": "deepseek-chat",
+  "prompt_version": "codeevo-benchmark-review-v3",
+  "resource_limits": {
+    "context_max_tokens": 1200,
+    "context_reserved_tokens": 256,
+    "max_output_tokens": 1200,
+    "max_findings": 4,
+    "max_json_repair_attempts": 1
+  },
+  "routes": {
+    "local-rules": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "clean_accuracy": 1.0,
+      "execution_success_rate": 1.0,
+      "latency_ms_p95": 0.3071,
+      "total_tokens": 0,
+      "model_calls": 0
+    },
+    "single-deepseek": {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5,
+      "clean_accuracy": 0.75,
+      "execution_success_rate": 1.0,
+      "latency_ms_p95": 8364.3896,
+      "total_tokens": 14671,
+      "model_calls": 8
+    },
+    "multi-agent": {
+      "precision": 1.0,
+      "recall": 0.25,
+      "f1": 0.4,
+      "clean_accuracy": 1.0,
+      "execution_success_rate": 1.0,
+      "latency_ms_p95": 49129.3794,
+      "total_tokens": 54281,
+      "model_calls": 25
+    }
+  },
+  "cost_status": "unavailable",
+  "notes": [
+    "Target CWE labels were not included in model prompts.",
+    "Repository-isolated split prevents the same repository from crossing partitions.",
+    "Holdout was not used during this validation optimization cycle."
+  ]
+}
