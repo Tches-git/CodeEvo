@@ -35,7 +35,7 @@ if [[ "${target_db}" == "codeevo" && "${CODEEVO_ALLOW_PRODUCTION_RESTORE:-false}
   exit 2
 fi
 
-compose=(docker compose --project-name "${COMPOSE_PROJECT}" --project-directory "${REPOSITORY_DIR}")
+compose=(docker compose --project-name "${COMPOSE_PROJECT}" --project-directory "${REPOSITORY_DIR}" --env-file "${REPOSITORY_DIR}/.env")
 "${compose[@]}" exec -T postgres pg_restore --list <"${backup}" >/dev/null
 exists="$("${compose[@]}" exec -T postgres psql -U "${DATABASE_USER}" -d postgres -Atc \
   "SELECT 1 FROM pg_database WHERE datname='${target_db}'")"
@@ -53,8 +53,13 @@ trap cleanup_failed ERR
   --no-owner --no-privileges <"${backup}"
 table_count="$("${compose[@]}" exec -T postgres psql -U "${DATABASE_USER}" -d "${target_db}" -Atc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
-task_count="$("${compose[@]}" exec -T postgres psql -U "${DATABASE_USER}" -d "${target_db}" -Atc \
-  "SELECT CASE WHEN to_regclass('public.tasks') IS NULL THEN -1 ELSE (SELECT count(*) FROM tasks) END")"
+if [[ "$("${compose[@]}" exec -T postgres psql -U "${DATABASE_USER}" -d "${target_db}" -Atc \
+  "SELECT to_regclass('public.tasks') IS NOT NULL")" == "t" ]]; then
+  task_count="$("${compose[@]}" exec -T postgres psql -U "${DATABASE_USER}" -d "${target_db}" -Atc \
+    "SELECT count(*) FROM tasks")"
+else
+  task_count=-1
+fi
 trap - ERR
 
 echo "restore_ok database=${target_db} tables=${table_count} tasks=${task_count}"

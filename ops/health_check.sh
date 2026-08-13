@@ -9,7 +9,7 @@ PUBLIC_URL="${CODEEVO_HEALTH_PUBLIC_URL:-}"
 WEBHOOK_URL="${CODEEVO_ALERT_WEBHOOK_URL:-}"
 failures=()
 
-compose=(docker compose --project-name "${COMPOSE_PROJECT}" --project-directory "${REPOSITORY_DIR}")
+compose=(docker compose --project-name "${COMPOSE_PROJECT}" --project-directory "${REPOSITORY_DIR}" --env-file "${REPOSITORY_DIR}/.env")
 running="$("${compose[@]}" ps --status running --services 2>/dev/null || true)"
 for service in postgres redis codeevo; do
   grep -qx "${service}" <<<"${running}" || failures+=("container:${service}")

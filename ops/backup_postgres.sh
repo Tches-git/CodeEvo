@@ -19,7 +19,7 @@ final_path="${BACKUP_DIR}/codeevo-${timestamp}.dump"
 temp_path="${final_path}.partial"
 trap 'rm -f -- "${temp_path}"' EXIT
 
-compose=(docker compose --project-name "${COMPOSE_PROJECT}" --project-directory "${REPOSITORY_DIR}")
+compose=(docker compose --project-name "${COMPOSE_PROJECT}" --project-directory "${REPOSITORY_DIR}" --env-file "${REPOSITORY_DIR}/.env")
 "${compose[@]}" exec -T postgres pg_dump \
   --username "${DATABASE_USER}" --dbname "${DATABASE}" --format custom >"${temp_path}"
 [[ -s "${temp_path}" ]] || { echo "备份文件为空" >&2; exit 1; }
