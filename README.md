@@ -7,12 +7,24 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-Apache--2.0-5B5B5B.svg)](LICENSE)
 
+[在线体验](https://vm-0-13-ubuntu.taila0420b.ts.net:8443) ·
+[服务状态](https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/ready) ·
+[产品截图](docs/PRODUCT_DEMO.md)
+
+> 公开实例启用了登录保护，并使用不产生模型费用的本地确定性 Agent。体验凭据不写入仓库，
+> 可由项目维护者按需提供。
+
 CodeEvo 是一个面向真实代码仓库的 AI Agent 工程项目：它不只让多个 Agent “讨论”，而是把
 **任务分解、工具调用、上下文压缩、证据绑定、评测门禁、灰度发布和回滚**做成一条可审计链路。
 系统支持 GitHub PR Webhook、DeepSeek/OpenAI-compatible 模型、本地确定性规则、Tree-sitter
 仓库检索，以及 PostgreSQL + Redis 生产模式。
 
 ![CodeEvo architecture](docs/assets/codeevo-architecture.svg)
+
+![CodeEvo 运行总览](docs/assets/codeevo-dashboard.jpg)
+
+> 真实本地运行截图：多 Agent 协作链、审查统计与最近任务。完整标注工作台截图见
+> [产品界面说明](docs/PRODUCT_DEMO.md)。
 
 ## 为什么值得看
 
@@ -72,6 +84,10 @@ curl --fail http://127.0.0.1:8080/health/ready
 默认只绑定 `127.0.0.1`，同时启动非 root CodeEvo、PostgreSQL 16 和 Redis 7。
 完整的部署、升级、备份与故障排查见 [部署指南](docs/DEPLOYMENT.md)。
 
+当前公开 Demo 运行在腾讯云主机上，由独立 Docker Compose 项目提供 PostgreSQL、Redis 和
+CodeEvo，并通过 Tailscale Funnel 暴露 HTTPS。服务器部署与验收方式见
+[公开 Demo 部署](docs/PUBLIC_DEMO.md)。仓库中的 `render.yaml` 保留为备用托管方案。
+
 ```bash
 # 单元测试
 python -m unittest discover -s tests -v
@@ -105,7 +121,7 @@ flowchart LR
 
 更多材料：[架构说明](docs/ARCHITECTURE.md) · [Benchmark](docs/BENCHMARK.md) ·
 [简历与面试讲解](docs/RESUME_PROJECT.md) · [安全基线](docs/SECURITY.md) ·
-[路线图](docs/ROADMAP.md)
+[产品界面](docs/PRODUCT_DEMO.md) · [公开 Demo 部署](docs/PUBLIC_DEMO.md) · [路线图](docs/ROADMAP.md)
 
 ## 功能清单
 

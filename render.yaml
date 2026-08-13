@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: codeevo
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    autoDeployTrigger: commit
+    envVars:
+      - key: CODEEVO_HOST
+        value: 0.0.0.0
+      - key: CODEEVO_PORT
+        value: "10000"
+      - key: CODEEVO_DATABASE_URL
+        fromDatabase:
+          name: codeevo-postgres
+          property: connectionString
+      - key: CODEEVO_DATABASE_AUTO_MIGRATE
+        value: "true"
+      - key: CODEEVO_AUTH_REQUIRED
+        value: "true"
+      - key: CODEEVO_AUTH_SECRET
+        generateValue: true
+      - key: CODEEVO_BOOTSTRAP_ADMIN_USERNAME
+        value: admin
+      - key: CODEEVO_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: CODEEVO_LLM_PROVIDER
+        value: local
+      - key: CODEEVO_LOG_FORMAT
+        value: json
+      - key: CODEEVO_LOG_LEVEL
+        value: INFO
+      - key: CODEEVO_PUBLIC_BASE_URL
+        sync: false
+
+databases:
+  - name: codeevo-postgres
+    plan: basic-256mb
+    region: singapore
+    databaseName: codeevo
+    user: codeevo
+    ipAllowList: []
