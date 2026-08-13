@@ -74,7 +74,10 @@ class DatabaseMigrationTests(unittest.TestCase):
             auto_migrate=False,
         )
 
-        create_engine_mock.assert_called_once_with("postgresql://user:pass@db/codeevo")
+        create_engine_mock.assert_called_once_with(
+            "postgresql://user:pass@db/codeevo",
+            connect_args={"connect_timeout": 3},
+        )
         with repository._connect():
             self.assertIs(driver_connection.row_factory, repository._row_factory)
         self.assertIs(driver_connection.row_factory, original_row_factory)

@@ -22,7 +22,7 @@ class PostgresTaskStore:
         # SQLAlchemy must initialize psycopg with its default tuple row factory.
         # A connection-wide dict_row makes dialect probes such as SELECT version()
         # yield the column name ("version") instead of the version value.
-        self.engine = create_database_engine(url)
+        self.engine = create_database_engine(url, connect_args={"connect_timeout": 3})
         if auto_migrate:
             upgrade_database(url)
 
@@ -44,6 +44,11 @@ class PostgresTaskStore:
 
     def close(self) -> None:
         self.engine.dispose()
+
+    def ping(self) -> bool:
+        """Verify that a pooled PostgreSQL connection is usable."""
+        with self.engine.connect() as connection:
+            return connection.exec_driver_sql("SELECT 1").scalar_one() == 1
 
     def create(
         self, task_id: str, repository: str, pull_request: Optional[int],

@@ -40,7 +40,10 @@ class TaskQueue:
                 import redis
             except ImportError as exc:
                 raise RuntimeError("Redis mode requires: pip install redis") from exc
-            self._redis = redis.Redis.from_url(redis_url, decode_responses=True)
+            self._redis = redis.Redis.from_url(
+                redis_url, decode_responses=True,
+                socket_connect_timeout=3, socket_timeout=3,
+            )
             self._redis.ping()
             try:
                 self._redis.xgroup_create(self.STREAM, self.GROUP, id="0", mkstream=True)
@@ -53,6 +56,10 @@ class TaskQueue:
     @property
     def backend(self) -> str:
         return "redis-streams" if self._redis else "memory-acked"
+
+    def ping(self) -> bool:
+        """Verify that the configured delivery backend is accepting commands."""
+        return bool(self._redis.ping()) if self._redis else not self._stop.is_set()
 
     def submit(self, payload: Dict[str, Any], message_id: str = "") -> str:
         envelope = {

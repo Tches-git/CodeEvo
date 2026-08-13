@@ -37,6 +37,7 @@ from .api_schemas import (
     LoginResponse,
     ReviewRequest,
     ReviewSubmission,
+    ReadinessResponse,
     RoutingPolicyEvaluationRequest,
     SkillEvolutionAutoRequest,
     SkillEvolutionProposalRequest,
@@ -77,7 +78,7 @@ def create_app(
     app = FastAPI(
         title="CodeEvo API",
         description="Evaluation-gated multi-agent code review and controlled evolution API.",
-        version="0.8.0",
+        version="0.9.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -220,6 +221,21 @@ def create_app(
             "llm_model": review_service.llm_config.get("model", ""),
             "repository_context_enabled": review_service.workspace_resolver.enabled,
         }
+
+    @app.get("/health/live", tags=["operations"])
+    def liveness():
+        return {"status": "ok"}
+
+    @app.get(
+        "/health/ready", response_model=ReadinessResponse,
+        responses={503: {"model": ReadinessResponse}}, tags=["operations"],
+    )
+    def readiness(response: Response):
+        checks = review_service.readiness()
+        ready = all(checks.values())
+        if not ready:
+            response.status_code = 503
+        return {"status": "ok" if ready else "unavailable", "checks": checks}
 
     @app.post("/v1/auth/login", response_model=LoginResponse, tags=["authentication"])
     def login(request: Request, payload: LoginRequest):

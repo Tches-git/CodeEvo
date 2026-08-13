@@ -24,6 +24,11 @@ class HealthResponse(ApiModel):
     repository_context_enabled: bool
 
 
+class ReadinessResponse(ApiModel):
+    status: Literal["ok", "unavailable"]
+    checks: Dict[str, bool]
+
+
 class LoginRequest(ApiModel):
     username: str = Field(min_length=1, max_length=150)
     password: str = Field(min_length=1, max_length=4096)

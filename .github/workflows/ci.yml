@@ -59,3 +59,25 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m unittest discover -s tests/integration -v
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build production image
+        run: docker build --build-arg VCS_REF="$GITHUB_SHA" -t codeevo:ci .
+      - name: Start image and verify probes
+        run: |
+          docker run -d --name codeevo-ci -p 127.0.0.1:18080:8080 codeevo:ci
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18080/health/ready > /tmp/readiness.json; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/health/live
+          curl --fail --silent http://127.0.0.1:18080/health/ready
+          test "$(docker inspect --format '{{.Config.User}}' codeevo-ci)" = codeevo
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs codeevo-ci

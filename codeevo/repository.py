@@ -12,6 +12,9 @@ class TaskRepository(Protocol):
 
     backend: str
 
+    def ping(self) -> bool:
+        ...
+
     def create(
         self,
         task_id: str,

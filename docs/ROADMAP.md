@@ -11,6 +11,7 @@
 - Compose 移除默认密码和签名密钥，缺少配置时拒绝启动。
 - Docker 使用非 root 用户运行。
 - 增加 pyproject、Ruff 和 GitHub Actions。
+- 增加多阶段生产镜像、依赖就绪探针、加固 Compose 和容器 CI 冒烟测试。
 
 ## 第二阶段：服务架构重构（已完成）
 

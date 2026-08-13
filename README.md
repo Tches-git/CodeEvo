@@ -60,6 +60,18 @@ python -m codeevo
 python scripts/run_local_demo.py
 ```
 
+生产后端的一键容器启动：
+
+```bash
+cp .env.compose.example .env
+# 替换 .env 中全部 replace-with-* 值
+docker compose up --build -d
+curl --fail http://127.0.0.1:8080/health/ready
+```
+
+默认只绑定 `127.0.0.1`，同时启动非 root CodeEvo、PostgreSQL 16 和 Redis 7。
+完整的部署、升级、备份与故障排查见 [部署指南](docs/DEPLOYMENT.md)。
+
 ```bash
 # 单元测试
 python -m unittest discover -s tests -v
@@ -482,11 +494,15 @@ Invoke-RestMethod https://<公网域名>/health
 ## 完整生产模式
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up --build
+Copy-Item .env.compose.example .env
+# 替换 .env 中全部 replace-with-* 值
+docker compose up --build -d
+docker compose ps
 ```
 
-Compose 会启动 PostgreSQL、Redis 和 CodeEvo。Compose 不再提供默认管理员密码、数据库密码或签名密钥；缺少这些配置时会拒绝启动。未配置 PostgreSQL 和 Redis 时，项目自动退回 SQLite 与进程内线程队列，适合本地演示。
+Compose 会启动 PostgreSQL、Redis 和 CodeEvo，并等待数据库和队列健康后再启动 API。CodeEvo 容器以非 root 用户、只读根文件系统和零 Linux capabilities 运行。Compose 不提供默认管理员密码、数据库密码或签名密钥；缺少这些配置时会拒绝启动。未配置 PostgreSQL 和 Redis 时，项目自动退回 SQLite 与进程内线程队列，适合本地演示。
+
+三个探针承担不同职责：`/health/live` 只检查 API 进程，`/health/ready` 实际查询数据库和队列并在故障时返回 `503`，`/health` 保留运行组件摘要。容器编排应使用 readiness，不要用摘要接口判断是否接收流量。完整运维流程见 [部署指南](docs/DEPLOYMENT.md)。
 
 PostgreSQL 模式通过 SQLAlchemy 管理连接池，并在启动时执行随包发布的 Alembic 迁移。希望由发布流水线独立控制迁移时，先运行：
 
@@ -542,7 +558,9 @@ python scripts/run_repository_context_demo.py
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `GET` | `/health` | 健康检查 |
+| `GET` | `/health/live` | 进程存活探针 |
+| `GET` | `/health/ready` | PostgreSQL/SQLite 与 Redis/内存队列就绪探针 |
+| `GET` | `/health` | 运行组件摘要 |
 | `POST` | `/v1/auth/login` | 登录并获取租户绑定的短期 Bearer Token |
 | `POST` | `/v1/reviews` | 创建同步审查任务 |
 | `POST` | `/v1/reviews?async=true` | 创建异步审查任务 |

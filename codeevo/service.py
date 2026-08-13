@@ -148,6 +148,16 @@ class ReviewService:
             output_cost_per_million=self.llm_config.get("output_cost_per_million"),
         )
 
+    def readiness(self) -> Dict[str, bool]:
+        """Return dependency readiness without leaking connection details."""
+        checks = {}
+        for name, component in (("persistence", self.store), ("queue", self.queue)):
+            try:
+                checks[name] = bool(component.ping())
+            except Exception:
+                checks[name] = False
+        return checks
+
     def _build_coordinator(self, reviewers: list) -> MultiAgentCoordinator:
         return MultiAgentCoordinator(
             reviewers, max_workers=self.settings.agent_max_workers, store=self.store,

@@ -25,6 +25,11 @@ class TaskStore:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def ping(self) -> bool:
+        """Verify that the SQLite persistence backend can execute a query."""
+        with self._connect() as conn:
+            return conn.execute("SELECT 1").fetchone()[0] == 1
+
     def _init(self) -> None:
         with self._connect() as conn:
             conn.execute(

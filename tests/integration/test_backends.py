@@ -119,6 +119,7 @@ class BackendIntegrationTests(unittest.TestCase):
         ).hexdigest()
         try:
             with TestClient(create_app(settings)) as client:
+                readiness = client.get("/health/ready")
                 response = client.post(
                     "/webhooks/github",
                     content=body,
@@ -134,6 +135,10 @@ class BackendIntegrationTests(unittest.TestCase):
 
         self.assertEqual(202, response.status_code)
         self.assertTrue(response.json()["ignored"])
+        self.assertEqual(200, readiness.status_code)
+        self.assertEqual(
+            {"persistence": True, "queue": True}, readiness.json()["checks"]
+        )
 
 
 if __name__ == "__main__":

@@ -39,6 +39,8 @@ class FastApiTests(unittest.TestCase):
         app = create_app(settings(self.path))
         with TestClient(app) as client:
             response = client.get("/health", headers={"X-Request-ID": "trace-123"})
+            live = client.get("/health/live")
+            ready = client.get("/health/ready")
             schema = client.get("/openapi.json").json()
             context_status = client.get(
                 "/v1/repository-context/status",
@@ -54,7 +56,23 @@ class FastApiTests(unittest.TestCase):
         self.assertIn("/v1/repository-context/status", schema["paths"])
         self.assertGreaterEqual(len(schema["paths"]), 30)
         self.assertFalse(response.json()["repository_context_enabled"])
+        self.assertEqual({"status": "ok"}, live.json())
+        self.assertEqual(200, ready.status_code)
+        self.assertEqual({"persistence": True, "queue": True}, ready.json()["checks"])
         self.assertFalse(context_status.json()["available"])
+
+    def test_readiness_fails_closed_when_a_dependency_is_unavailable(self):
+        app = create_app(settings(self.path))
+        app.state.service.store.ping = lambda: False
+
+        with TestClient(app) as client:
+            live = client.get("/health/live")
+            ready = client.get("/health/ready")
+
+        self.assertEqual(200, live.status_code)
+        self.assertEqual(503, ready.status_code)
+        self.assertEqual("unavailable", ready.json()["status"])
+        self.assertFalse(ready.json()["checks"]["persistence"])
 
     def test_review_feedback_and_validation_flow(self):
         app = create_app(settings(self.path))

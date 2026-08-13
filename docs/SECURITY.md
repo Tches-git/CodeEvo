@@ -5,6 +5,8 @@
 - 对外部署必须启用 `CODEEVO_AUTH_REQUIRED=true`。
 - `CODEEVO_AUTH_SECRET` 至少包含 32 字节随机数据。
 - Compose 要求显式提供 PostgreSQL、管理员和认证密钥配置。
+- 默认只绑定宿主机 `127.0.0.1`；公网访问必须通过 TLS 反向代理。
+- CodeEvo 容器使用非 root、只读根文件系统、`no-new-privileges` 和零 capabilities。
 - 生产租户必须显式授予仓库访问权；没有授权记录时默认拒绝。
 - 自动修复还需要仓库授权中的 `auto_fix` 权限。
 - 登录失败按客户端地址与用户名组合限流；默认 5 次失败后锁定 300 秒。
