@@ -1,10 +1,12 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy import create_engine, inspect
 
 from codeevo.database import normalize_database_url, upgrade_database
+from codeevo.postgres_store import PostgresTaskStore
 from codeevo.repository import TaskRepository, create_repository
 
 
@@ -56,6 +58,28 @@ class DatabaseMigrationTests(unittest.TestCase):
             "postgresql+psycopg://user:pass@db/codeevo",
             normalize_database_url("postgres://user:pass@db/codeevo"),
         )
+
+    @patch("codeevo.postgres_store.create_database_engine")
+    def test_postgres_row_factory_is_scoped_to_repository_operations(self, create_engine_mock):
+        driver_connection = MagicMock()
+        original_row_factory = object()
+        driver_connection.row_factory = original_row_factory
+        connection = MagicMock(driver_connection=driver_connection)
+        engine = MagicMock()
+        engine.raw_connection.return_value = connection
+        create_engine_mock.return_value = engine
+
+        repository = PostgresTaskStore(
+            "postgresql://user:pass@db/codeevo",
+            auto_migrate=False,
+        )
+
+        create_engine_mock.assert_called_once_with("postgresql://user:pass@db/codeevo")
+        with repository._connect():
+            self.assertIs(driver_connection.row_factory, repository._row_factory)
+        self.assertIs(driver_connection.row_factory, original_row_factory)
+        connection.commit.assert_called_once_with()
+        connection.close.assert_called_once_with()
 
 
 if __name__ == "__main__":

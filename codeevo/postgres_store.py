@@ -18,23 +18,28 @@ class PostgresTaskStore:
         except ImportError as exc:
             raise RuntimeError("PostgreSQL mode requires: pip install psycopg[binary]") from exc
         self.url = url
-        self.engine = create_database_engine(
-            url,
-            connect_args={"row_factory": dict_row},
-        )
+        self._row_factory = dict_row
+        # SQLAlchemy must initialize psycopg with its default tuple row factory.
+        # A connection-wide dict_row makes dialect probes such as SELECT version()
+        # yield the column name ("version") instead of the version value.
+        self.engine = create_database_engine(url)
         if auto_migrate:
             upgrade_database(url)
 
     @contextmanager
     def _connect(self):
         connection = self.engine.raw_connection()
+        driver_connection = connection.driver_connection
+        original_row_factory = driver_connection.row_factory
         try:
+            driver_connection.row_factory = self._row_factory
             yield connection
             connection.commit()
         except Exception:
             connection.rollback()
             raise
         finally:
+            driver_connection.row_factory = original_row_factory
             connection.close()
 
     def close(self) -> None:
