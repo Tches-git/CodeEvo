@@ -14,6 +14,7 @@ ROLE_PERMISSIONS = {
     "admin": {"read", "review", "fix", "manage", "audit"},
     "maintainer": {"read", "review", "fix"},
     "auditor": {"read", "audit"},
+    "guest": {"demo_read"},
 }
 
 
@@ -105,6 +106,29 @@ class AuthManager:
             str(payload["sub"]), str(payload["username"]),
             str(payload["tenant"]), str(payload["role"]),
         )
+
+    def guest_session(self, tenant_id: str, ttl_seconds: int = 900) -> Dict[str, object]:
+        """Issue a short-lived, read-only session for an isolated showcase tenant."""
+        if not tenant_id:
+            raise ValueError("guest tenant is required")
+        now = int(time.time())
+        ttl = min(max(60, int(ttl_seconds)), self.ttl_seconds)
+        payload = {
+            "kind": "access",
+            "sub": "public-demo-guest",
+            "username": "访客",
+            "tenant": tenant_id,
+            "role": "guest",
+            "iat": now,
+            "exp": now + ttl,
+        }
+        return {
+            "access_token": self._encode(payload),
+            "token_type": "Bearer",
+            "expires_in": ttl,
+            "tenant_id": tenant_id,
+            "role": "guest",
+        }
 
     def create_installation_state(
         self, principal: Principal, ttl_seconds: int = 600,

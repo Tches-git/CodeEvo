@@ -15,6 +15,8 @@ Python / FastAPI / DeepSeek / Multi-Agent / Tree-sitter / PostgreSQL / Redis / D
   P50/P95/P99、Token 和成本，并将 Prompt/Skill/Route 候选接入 Shadow、Canary、激活与回滚门禁。
 - 基于 Vul4J 构建 40 条可审计 risk/clean 案例；真实 Validation 上单 Agent F1 0.50，多 Agent Precision 1.00，
   用实验说明多 Agent 的精度/召回/成本权衡，而非只展示架构复杂度。
+- 发布隔离的只读访客模式与三条可复核演示链路，后端 RBAC 拒绝所有写操作；配套 PostgreSQL 原子备份、
+  隔离恢复演练、健康探针和磁盘告警，使招聘方无需凭据即可安全验证项目。
 
 ## 30 秒口述
 
@@ -22,6 +24,15 @@ Python / FastAPI / DeepSeek / Multi-Agent / Tree-sitter / PostgreSQL / Redis / D
 结论不可验证和版本无法安全进化的问题。我实现了有界 Agent Runtime、仓库级证据工具、评测 Harness 和
 发布回滚门禁。项目用同一组 Vul4J 数据比较本地规则、单 Agent 和多 Agent，结果显示单 Agent F1 更高，
 多 Agent Precision 更高但 Token 和延迟更贵，所以最终路由由评测数据决定。”
+
+## STAR 深挖材料
+
+- **Situation**：作品集既要允许招聘方直接体验，又不能暴露管理员能力、付费模型或真实租户数据。
+- **Task**：在不弱化生产认证边界的前提下，提供可验证的 Agent 工程证据并确保单机 Demo 可恢复。
+- **Action**：实现 5 分钟 Guest Principal、`public-demo` 租户隔离和后端 403 写门禁；固化三路线
+  Benchmark 快照与 Agent/Tool/Evidence 轨迹；增加备份校验、隔离恢复、systemd 探针和磁盘告警。
+- **Result**：招聘方一键即可比较 F1、延迟与 Token，并下钻到 Finding 证据；访客没有任何写权限，
+  服务具备每日备份、5 分钟健康检查和可重复恢复演练。
 
 ## 高频追问
 

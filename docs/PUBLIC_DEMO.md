@@ -1,16 +1,16 @@
 # CodeEvo 公开 Demo 部署
 
-公开 Demo 已部署在腾讯云主机 `tencent-111`：
+公开 Demo 部署在腾讯云主机 `tencent-111`：
 
 - 在线入口：<https://vm-0-13-ubuntu.taila0420b.ts.net:8443>
 - 就绪状态：<https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/ready>
 - 应用内部监听：`127.0.0.1:18181`
 - HTTPS：Tailscale Funnel 独立端口 `8443`
 - 数据层：PostgreSQL 16 + Redis 7
-- Agent：本地确定性规则，不需要模型 Key
+- 实时 Agent：本地确定性规则，不需要模型 Key
 
-公开实例强制登录，自动 PR 回写和自动修复保持关闭。管理员密码、认证签名密钥和数据库
-密码只保存在服务器，不能写入仓库或命令历史。
+首页提供“一键体验只读 Demo”。访客会话约 5 分钟，不需要账号密码，只能读取隔离的
+`public-demo` 租户。三个展示案例包含已发布的 DeepSeek Benchmark 快照，但浏览过程不会调用付费模型。
 
 ## 部署布局
 
@@ -22,84 +22,77 @@ Internet
   -> PostgreSQL + Redis (仅 Compose 内部网络)
 ```
 
-服务器路径与 Compose 项目名：
-
 ```text
-/opt/codeevo/repository   部署清单与源码
-/opt/codeevo/credentials  公开 Demo 登录信息（0600）
+/opt/codeevo/repository   部署清单、源码和运维脚本
+/opt/codeevo/credentials  服务器私密环境文件
+/opt/codeevo/backups      0600 PostgreSQL 逻辑备份
 codeevo-demo              独立 Compose 项目
 ```
 
-这个部署不会占用公网 `80`/`443`，也不会修改服务器已有的 Nginx、Caddy 或其他 Compose
-项目。CodeEvo 容器只绑定回环地址，并以非 root 用户、只读根文件系统和零 Linux
-capabilities 运行。
+这个部署不占用公网 `80`/`443`，不修改已有 Nginx、Caddy 或其他 Compose 项目。CodeEvo 只绑定
+回环地址，并以非 root 用户、只读根文件系统和零 Linux capabilities 运行。
+
+## 访客安全边界
+
+- `CODEEVO_AUTH_REQUIRED=true`，Guest 不是绕过认证；
+- Guest Principal 只有 `demo_read`，没有 `read/review/fix/manage/audit`；
+- Guest 固定进入 `public-demo`，不能传入或切换租户；
+- 只允许 Dashboard、任务列表/报告和 Benchmark；
+- 写入口在 UI 隐藏，后端仍对直接 API 请求返回 403；
+- 自动 PR 回写、自动修复和付费模型在线调用保持关闭。
 
 ## 日常检查
 
 ```bash
 ssh tencent-111 '
   cd /opt/codeevo/repository
-  COMPOSE_PROJECT_NAME=codeevo-demo docker compose ps
-  curl --fail http://127.0.0.1:18181/health/live
-  curl --fail http://127.0.0.1:18181/health/ready
-  tailscale funnel status
+  CODEEVO_COMPOSE_PROJECT=codeevo-demo \
+  CODEEVO_HEALTH_LOCAL_URL=http://127.0.0.1:18181 \
+  CODEEVO_HEALTH_PUBLIC_URL=https://vm-0-13-ubuntu.taila0420b.ts.net:8443 \
+  ./ops/health_check.sh
+  systemctl list-timers "codeevo-*" --no-pager
 '
 ```
 
-从外部网络检查：
-
-```bash
-curl --fail https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/live
-curl --fail https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/ready
-```
-
-登录信息不在 README 公开。项目维护者可以在受信任的终端查看：
-
-```bash
-ssh tencent-111 'sudo cat /opt/codeevo/credentials'
-```
-
-不要把该命令的输出粘贴到 Issue、CI 日志或公开聊天中。
+管理员凭据只用于维护，保存在服务器私密目录，不需要也不应提供给公开访客。
 
 ## 更新服务
 
-先备份数据库，再同步已验证的新版本到 `/opt/codeevo/repository`，然后运行：
+先运行备份，再同步已通过测试的新版本：
 
 ```bash
 ssh tencent-111 '
   cd /opt/codeevo/repository
-  export COMPOSE_PROJECT_NAME=codeevo-demo
-  docker compose build codeevo
-  docker compose up -d --wait
-  docker compose ps
+  export CODEEVO_COMPOSE_PROJECT=codeevo-demo
+  export CODEEVO_BACKUP_DIR=/opt/codeevo/backups
+  ./ops/backup_postgres.sh
+  docker compose --project-name codeevo-demo build codeevo
+  docker compose --project-name codeevo-demo up -d --wait
+  CODEEVO_HEALTH_LOCAL_URL=http://127.0.0.1:18181 ./ops/health_check.sh
 '
 ```
 
-如果官方 PyPI 在国内网络下载缓慢，可在服务器 `.env` 中设置
-`CODEEVO_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple` 后重新构建。完整备份、恢复、
-迁移和回滚流程见 [部署指南](DEPLOYMENT.md)。
+服务器 `.env` 至少应包含 Guest 配置和 `CODEEVO_IMAGE_TAG=1.0.0`，但不要输出或提交完整文件。
 
-## 安全边界
+## 备份、恢复与告警
 
-- 保持 `CODEEVO_AUTH_REQUIRED=true`；
-- 不向公网映射 PostgreSQL 和 Redis 端口；
-- 不在公开 Demo 配置具有 PR 写权限的 GitHub Token；
-- 只为明确允许的演示仓库创建 repository grant；
-- 启用付费模型时使用一枚未曾公开的新 Key，并配置调用预算；
-- 凭据泄漏后同时轮换登录密码、`CODEEVO_AUTH_SECRET` 和相关 Token。
+- `ops/backup_postgres.sh`：custom-format 原子备份、`pg_restore --list` 校验、0600 权限、默认保留 14 天；
+- `ops/restore_postgres.sh`：必须显式指定目标和 `--confirm`，默认拒绝覆盖 `codeevo`；
+- `ops/health_check.sh`：检查三容器、live、ready 和可选公网入口；
+- `ops/disk_guard.sh`：80% warning、90% critical，可选 Webhook，不自动删除；
+- `ops/docker_prune_safe.sh`：只清 dangling image 和 7 天前 build cache，不删除 volume；
+- `ops/install_systemd.sh --enable`：安装每日备份、每 5 分钟探针和每日磁盘检查。
 
-## 验收结果
+恢复演练使用临时数据库并在核验表数和任务数后删除，生产 CodeEvo 无需停机。
 
-- `/health/live`：HTTP 200；
-- `/health/ready`：HTTP 200，`persistence=true`、`queue=true`；
-- 未登录访问 `/api/dashboard`：HTTP 401；
-- 管理员登录与 Dashboard：HTTP 200；
-- 异步本地规则审查：提交 HTTP 202，最终状态 `SUCCESS`；
-- 容器安全参数：`user=codeevo`、`read_only=true`、`cap_drop=ALL`；
-- HTTPS 证书与公网转发：已验证。
+## 验收标准
 
-## 备用托管方案
+- `/health/live` 与 `/health/ready` 为 HTTP 200；
+- 未登录业务 API 返回 401，Guest 登录返回短期 Token；
+- Guest 可读取 3 个案例和路线对比，任何写请求返回 403；
+- PostgreSQL、Redis、CodeEvo 容器均 healthy；
+- 最新备份可通过 `pg_restore --list` 并成功恢复到隔离数据库；
+- 重启 CodeEvo 后 readiness 恢复，Guest 登录仍可用；
+- Tailscale Funnel 的 8443 HTTPS 转发正常。
 
-根目录的 `render.yaml` 可以创建 Render Web Service 和托管 PostgreSQL，适合没有可用服务器时
-快速演示。它不是当前线上实例的部署来源；使用时仍需配置强管理员密码，并保持认证与写操作
-安全边界不变。
+根目录 `render.yaml` 是备用托管方案，不是当前线上实例的部署来源。

@@ -22,6 +22,7 @@ from .reviewer import (
     OpenAICompatibleReviewer, ReliabilityRuleReviewer, SecurityRuleReviewer,
 )
 from .diff_parser import parse_unified_diff
+from .demo import seed_public_showcase
 from .skills import SkillRegistry
 from .skill_evolution import DeclarativeSkillReviewer, SkillEvolutionEngine
 from .store import utc_now
@@ -94,6 +95,8 @@ class ReviewService:
             settings.bootstrap_admin_username, settings.bootstrap_admin_password,
             settings.default_tenant_id,
         )
+        if settings.guest_demo_enabled:
+            seed_public_showcase(self.store, settings.guest_demo_tenant_id)
         self.releases = ReleaseManager(self.store, EvaluationPolicy(
             minimum_quality_improvement=settings.eval_min_improvement,
             maximum_quality_regression=settings.eval_max_metric_regression,

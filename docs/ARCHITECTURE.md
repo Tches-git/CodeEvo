@@ -11,6 +11,19 @@ CodeEvo 的核心设计目标不是增加 Agent 数量，而是让 Agent 运行�
 - SQLite + 进程内队列用于本地演示；PostgreSQL + Redis Streams 用于生产运行。
 - Webhook delivery、任务租约、ACK、重试和 DLQ 都具有明确的幂等键。
 
+公开作品集入口使用独立访客边界：`POST /v1/auth/guest` 签发短期 `guest` 会话，只授予
+`demo_read`，并把 Principal 固定到隔离的 `public-demo` 租户。访客只能读取 Dashboard、预置任务、
+报告与 Benchmark，所有审查、反馈、标注、修复、Skill 和发布接口仍由后端 RBAC 返回 403。
+
+```mermaid
+flowchart LR
+    G["招聘方 / 访客"] --> S["5 分钟 Guest Session"]
+    S --> T["public-demo 隔离租户"]
+    T --> R["Dashboard / Tasks / Benchmark"]
+    R --> E["Agent 消息 / Tool / Evidence"]
+    S -. "无 review / fix / manage / audit" .-> D["写接口 403"]
+```
+
 ## 2. Agent Runtime
 
 任务通过 `PENDING → PLANNING → EXECUTING → REVIEWING → SUCCESS` 状态机执行。每个节点可以写入

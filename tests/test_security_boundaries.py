@@ -55,6 +55,17 @@ class SecurityBoundaryTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             auth.verify_installation_state(state[:-1] + ("a" if state[-1] != "a" else "b"))
 
+    def test_guest_session_has_only_demo_read_permission(self):
+        auth = AuthManager(self.store, "s" * 32)
+        session = auth.guest_session("public-demo", 120)
+        principal = auth.authenticate("Bearer " + session["access_token"])
+
+        self.assertEqual("guest", principal.role)
+        self.assertEqual("public-demo", principal.tenant_id)
+        self.assertTrue(principal.can("demo_read"))
+        for permission in ("read", "review", "fix", "manage", "audit"):
+            self.assertFalse(principal.can(permission))
+
     def test_github_client_rejects_cross_tenant_installation(self):
         self.store.save_installation(123, "acme", "tenant-a")
         service = ReviewService.__new__(ReviewService)

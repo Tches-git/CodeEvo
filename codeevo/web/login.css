@@ -10,8 +10,8 @@
 }
 
 .login-card {
-  width: min(430px, calc(100vw - 32px));
-  padding: 34px;
+  width: min(920px, calc(100vw - 32px));
+  padding: 30px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-panel);
   background: #14181e;
@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  margin-bottom: 34px;
+  margin-bottom: 26px;
   color: var(--ink);
   font-size: 16px;
   font-weight: 720;
@@ -34,17 +34,51 @@
   flex-basis: 38px;
 }
 
-.login-card h2 {
-  margin: 0 0 7px;
-  font-size: 28px;
-  letter-spacing: -1px;
+.login-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
 }
 
-.login-lead {
-  margin: 0 0 25px;
-  color: var(--muted);
-  font-size: 12px;
+.login-intro, .credential-login { padding: 34px; }
+.login-intro {
+  background:
+    radial-gradient(circle at 100% 0, rgba(231, 122, 50, .15), transparent 18rem),
+    #181d24;
 }
+.credential-login { background: #111419; border-left: 1px solid var(--line); }
+.login-kicker {
+  color: var(--accent-bright);
+  font: 700 9px/1.2 "Cascadia Code", Consolas, monospace;
+  letter-spacing: 1.3px;
+}
+.login-card h2 {
+  margin: 0 0 7px;
+  max-width: 500px;
+  font-size: clamp(34px, 4vw, 54px);
+  line-height: 1.02;
+  letter-spacing: -2.2px;
+}
+.credential-login h3 { margin: 0 0 6px; font-size: 18px; }
+.credential-login > p { margin: 0 0 24px; color: var(--muted); font-size: 11px; }
+
+.login-lead {
+  max-width: 440px;
+  margin: 14px 0 26px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.login-proof { display: grid; grid-template-columns: repeat(3, 1fr); margin: 26px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.login-proof span { display: grid; gap: 5px; padding: 15px 10px; color: var(--faint); font-size: 9px; border-right: 1px solid var(--line); }
+.login-proof span:first-child { padding-left: 0; }
+.login-proof span:last-child { border-right: 0; }
+.login-proof b { color: var(--ink); font-size: 22px; font-variant-numeric: tabular-nums; }
+.login-card .guest-button { width: auto; min-width: 210px; margin-top: 0; }
+.guest-note { margin: 10px 0 0; color: var(--faint); font-size: 9px; }
 
 .login-card .button {
   width: 100%;
@@ -60,4 +94,16 @@
 
 @media (max-width: 480px) {
   .login-card { padding: 27px 23px; }
+}
+
+@media (max-width: 760px) {
+  .login-card { max-height: calc(100dvh - 24px); overflow: auto; padding: 16px; }
+  .login-layout { grid-template-columns: 1fr; }
+  .login-intro, .credential-login { padding: 24px; }
+  .credential-login { border-top: 1px solid var(--line); border-left: 0; }
+  .login-card h2 { font-size: 36px; }
+  .login-proof { grid-template-columns: 1fr; }
+  .login-proof span { grid-template-columns: 42px 1fr; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
+  .login-proof span:last-child { border-bottom: 0; }
+  .login-card .guest-button { width: 100%; }
 }

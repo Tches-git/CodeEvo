@@ -11,8 +11,9 @@
 [服务状态](https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/ready) ·
 [产品截图](docs/PRODUCT_DEMO.md)
 
-> 公开实例启用了登录保护，并使用不产生模型费用的本地确定性 Agent。体验凭据不写入仓库，
-> 可由项目维护者按需提供。
+> **v1.0.0 已开放一键只读体验。** 无需账号或密码；短期访客会话只能读取隔离的
+> `public-demo` 租户，不能创建审查、反馈、修复或修改任何配置。实时付费模型保持关闭，页面展示
+> 已发布 Benchmark 快照和可复核 Agent 链路。
 
 CodeEvo 是一个面向真实代码仓库的 AI Agent 工程项目：它不只让多个 Agent “讨论”，而是把
 **任务分解、工具调用、上下文压缩、证据绑定、评测门禁、灰度发布和回滚**做成一条可审计链路。
@@ -21,9 +22,9 @@ CodeEvo 是一个面向真实代码仓库的 AI Agent 工程项目：它不只�
 
 ![CodeEvo architecture](docs/assets/codeevo-architecture.svg)
 
-![CodeEvo 运行总览](docs/assets/codeevo-dashboard.jpg)
+![CodeEvo 只读体验](docs/assets/codeevo-showcase-overview.jpg)
 
-> 真实本地运行截图：多 Agent 协作链、审查统计与最近任务。完整标注工作台截图见
+> 真实服务截图：只读访客模式、多 Agent 协作链、审查统计与最近任务。完整页面说明见
 > [产品界面说明](docs/PRODUCT_DEMO.md)。
 
 ## 为什么值得看
@@ -121,7 +122,8 @@ flowchart LR
 
 更多材料：[架构说明](docs/ARCHITECTURE.md) · [Benchmark](docs/BENCHMARK.md) ·
 [简历与面试讲解](docs/RESUME_PROJECT.md) · [安全基线](docs/SECURITY.md) ·
-[产品界面](docs/PRODUCT_DEMO.md) · [公开 Demo 部署](docs/PUBLIC_DEMO.md) · [路线图](docs/ROADMAP.md)
+[产品界面](docs/PRODUCT_DEMO.md) · [招聘方体验路线](docs/RECRUITER_DEMO.md) ·
+[公开 Demo 部署](docs/PUBLIC_DEMO.md) · [路线图](docs/ROADMAP.md)
 
 ## 功能清单
 

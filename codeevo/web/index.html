@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d10">
-  <title>CodeEvo · 智能代码审查控制台</title>
-  <meta name="description" content="CodeEvo 多智能体代码审查、自动修复与 Skill 演进控制台">
-  <link rel="stylesheet" href="/assets/app.css?v=20260812.1">
-  <link rel="stylesheet" href="/assets/login.css?v=20260805">
+  <title>CodeEvo | 可评测的多 Agent 代码审查</title>
+  <meta name="description" content="查看 CodeEvo 的多 Agent 审查轨迹、证据门禁与 Benchmark 路线对比">
+  <link rel="stylesheet" href="/assets/app.css?v=20260813.1">
+  <link rel="stylesheet" href="/assets/login.css?v=20260813.1">
 </head>
 <body>
   <div class="app-shell">
@@ -21,19 +21,22 @@
         <button class="nav-item active" data-view="overview" data-icon="OV">
           <span>运行总览</span>
         </button>
-        <button class="nav-item" data-view="review" data-icon="RV">
+        <button class="nav-item write-only" data-view="review" data-icon="RV">
           <span>发起审查</span>
         </button>
         <button class="nav-item" data-view="tasks" data-icon="TS">
           <span>任务中心</span>
         </button>
-        <button class="nav-item" data-view="annotations" data-icon="LB">
+        <button class="nav-item" data-view="benchmark" data-icon="BM">
+          <span>路线对比</span>
+        </button>
+        <button class="nav-item write-only" data-view="annotations" data-icon="LB">
           <span>标注工作台</span>
         </button>
-        <button class="nav-item" data-view="skills" data-icon="SK">
+        <button class="nav-item write-only" data-view="skills" data-icon="SK">
           <span>Skills</span>
         </button>
-        <button class="nav-item" data-view="evolution" data-icon="EV">
+        <button class="nav-item write-only" data-view="evolution" data-icon="EV">
           <span>演进实验室</span>
         </button>
       </nav>
@@ -48,20 +51,26 @@
       <header class="topbar">
         <h1 id="page-title">运行总览</h1>
         <div class="top-actions">
+          <span class="viewer-mode hidden" id="viewer-mode">只读访客</span>
           <button class="refresh-button" id="refresh" aria-label="刷新当前数据">刷新</button>
           <button class="button secondary hidden" id="logout">退出登录</button>
-          <span class="avatar" aria-label="当前用户">EA</span>
+          <span class="avatar" id="avatar" aria-label="当前用户">EA</span>
         </div>
       </header>
 
       <section class="view active" id="view-overview" aria-labelledby="page-title">
+        <div class="showcase-notice hidden" id="showcase-notice">
+          <b>公开体验空间</b>
+          <span>数据来自确定性回放与已发布 Benchmark 快照。所有写操作均由服务端禁用。</span>
+        </div>
         <div class="hero">
           <div class="hero-copy">
-            <h2>让每一次代码审查，<br><em>都成为系统的经验。</em></h2>
-            <p>安全、可靠性与 AI Agent 并行协作。Harness 统一管理状态、预算、回放与版本门禁。</p>
+            <h2>审查结论可以复核，<br><em>Agent 版本可以回滚。</em></h2>
+            <p>查看 Planner、工具证据、Verifier 门禁与三条路线的真实成本差异。</p>
             <div class="hero-actions">
-              <button class="button accent" data-jump="review">新建 PR 审查</button>
-              <button class="text-button" data-jump="tasks">查看任务记录</button>
+              <button class="button accent write-only" data-jump="review">新建 PR 审查</button>
+              <button class="button accent guest-only role-hidden" data-jump="tasks">查看 Agent 轨迹</button>
+              <button class="text-button" data-jump="benchmark">比较三条路线</button>
             </div>
           </div>
           <div class="hero-visual" aria-hidden="true">
@@ -120,6 +129,26 @@
         </div>
       </section>
 
+      <section class="view" id="view-benchmark" aria-labelledby="page-title">
+        <div class="benchmark-intro">
+          <div>
+            <h2>复杂架构不等于更好结果。</h2>
+            <p>同一组 Validation、同一评分逻辑，对比本地规则、单 Agent 与多 Agent 的质量、延迟和 Token。</p>
+          </div>
+          <div class="benchmark-facts" id="benchmark-facts" aria-live="polite"></div>
+        </div>
+        <div class="route-comparison" id="route-comparison" aria-live="polite">
+          <div class="route-skeleton"></div><div class="route-skeleton"></div><div class="route-skeleton"></div>
+        </div>
+        <article class="benchmark-disclosure panel">
+          <div>
+            <h3>如何阅读这组结果</h3>
+            <p id="benchmark-disclosure">正在读取可复现快照。</p>
+          </div>
+          <button class="button secondary" data-jump="tasks">查看对应案例</button>
+        </article>
+      </section>
+
       <section class="view" id="view-review" aria-labelledby="page-title">
         <div class="section-heading">
           <div><h2>提交 Pull Request Diff</h2><p>提供仓库信息与统一格式的 diff，交由多个 Agent 并行审查。</p></div>
@@ -159,7 +188,7 @@
 
       <section class="view" id="view-tasks" aria-labelledby="page-title">
         <div class="section-heading">
-          <div><h2>审查任务</h2><p>跟踪任务状态，查看报告并创建安全修复分支。</p></div>
+          <div><h2>审查任务</h2><p id="tasks-intro">跟踪任务状态，查看报告并创建安全修复分支。</p></div>
         </div>
         <div class="tasks-layout">
           <article class="panel">
@@ -173,7 +202,10 @@
               <h3>任务报告</h3>
               <button class="button danger hidden" id="create-fix">创建修复分支</button>
             </div>
-            <pre id="task-report">请选择一个已完成的任务。</pre>
+            <div id="task-report" class="task-explorer empty-task">
+              <b>选择一个已完成的任务</b>
+              <span>Agent 轨迹、工具调用、证据和 Finding 会显示在这里。</span>
+            </div>
             <section class="feedback-panel hidden" id="feedback-panel" aria-labelledby="feedback-title">
               <div class="feedback-head">
                 <div>
@@ -344,7 +376,7 @@
           </div>
           <div class="annotation-export-grid">
             <label>数据集名称<input name="name" value="codeevo-public-pr" required></label>
-            <label>版本<input name="version" value="0.9.0" required></label>
+            <label>版本<input name="version" value="1.0.0" required></label>
             <fieldset>
               <legend>包含分区</legend>
               <label class="check"><input name="splits" type="checkbox" value="train" checked><span>Train</span></label>
@@ -417,17 +449,33 @@
         <span class="brand-mark">E</span>
         <span>CodeEvo<small>SECURE CONTROL PLANE</small></span>
       </div>
-      <h2>登录控制台</h2>
-      <p class="login-lead">使用你的工作区凭据继续。</p>
+      <div class="login-layout">
+        <div class="login-intro">
+          <span class="login-kicker">EVIDENCE-GROUNDED REVIEW</span>
+          <h2>先看证据，再相信 Agent。</h2>
+          <p class="login-lead">无需账号即可浏览真实审查轨迹、质量门禁与路线成本。</p>
+          <div class="login-proof">
+            <span><b>3</b> 条审查路线</span>
+            <span><b>8</b> 个 Validation 案例</span>
+            <span><b>0</b> 次访客写权限</span>
+          </div>
+          <button class="button guest-button" id="guest-login" type="button">一键体验只读 Demo</button>
+          <p class="guest-note">短期访客会话，不需要密码，不调用付费模型。</p>
+        </div>
+        <div class="credential-login">
+          <h3>维护者登录</h3>
+          <p>管理审查、标注和版本演进。</p>
       <label>用户名<input name="username" autocomplete="username" required></label>
       <label>密码<input name="password" type="password" autocomplete="current-password" required></label>
       <label>租户 ID <span class="optional">可选</span><input name="tenant_id" placeholder="只有一个租户时可留空"></label>
       <button class="button" type="submit">安全登录</button>
+        </div>
+      </div>
       <p class="login-error" id="login-error" role="alert"></p>
     </form>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/assets/app.js?v=20260812.1"></script>
+  <script src="/assets/app.js?v=20260813.1"></script>
 </body>
 </html>

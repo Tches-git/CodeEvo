@@ -103,25 +103,52 @@ docker compose up -d
 
 ## 7. 备份与恢复
 
-创建逻辑备份：
+仓库内置脚本会使用 custom format 创建原子备份，设为 0600，运行 `pg_restore --list` 校验，
+并按默认 14 天保留策略清理过期文件：
 
 ```bash
-mkdir -p backups
-docker compose exec -T postgres pg_dump -U codeevo -d codeevo -Fc > backups/codeevo.dump
+CODEEVO_BACKUP_DIR=/srv/codeevo/backups ./ops/backup_postgres.sh
 ```
 
-恢复会覆盖同名数据库中的对象，应先在隔离环境演练。确认目标后：
+恢复必须显式提供备份、目标数据库与 `--confirm`。默认拒绝把目标设为生产库 `codeevo`。推荐先恢复到
+隔离库，检查表数和任务数后自动删除：
 
 ```bash
-docker compose stop codeevo
-docker compose exec -T postgres pg_restore -U codeevo -d codeevo --clean --if-exists < backups/codeevo.dump
-docker compose start codeevo
-curl --fail http://127.0.0.1:8080/health/ready
+./ops/restore_postgres.sh \
+  --backup /srv/codeevo/backups/codeevo-20260813T032000Z.dump \
+  --target-db codeevo_restore_drill \
+  --confirm --drop-after-check
 ```
 
 Redis 保存的是可重投递任务流，不是真值数据库。首先保护 PostgreSQL 备份；Redis volume 用于减少重启期间的排队任务损失。
 
-## 8. 仓库上下文挂载
+## 8. 健康检查、告警与定时器
+
+```bash
+CODEEVO_HEALTH_LOCAL_URL=http://127.0.0.1:8080 \
+CODEEVO_HEALTH_PUBLIC_URL=https://codeevo.example.com \
+./ops/health_check.sh
+
+CODEEVO_DISK_WARNING_PERCENT=80 \
+CODEEVO_DISK_CRITICAL_PERCENT=90 \
+./ops/disk_guard.sh
+```
+
+两者都支持通过服务器私密环境文件设置 `CODEEVO_ALERT_WEBHOOK_URL`。磁盘脚本只告警，不自动删除数据。
+确需释放 Docker 空间时可执行 `ops/docker_prune_safe.sh`，它只清理 dangling image 和 7 天前的 build
+cache，绝不删除 volume。
+
+在固定部署路径 `/opt/codeevo/repository` 上安装 timers：
+
+```bash
+sudo ./ops/install_systemd.sh --enable
+systemctl list-timers 'codeevo-*' --no-pager
+```
+
+默认计划为每日 03:20 备份、每 5 分钟健康检查、每日 04:00 磁盘检查。环境覆盖写入
+`/opt/codeevo/credentials/ops.env` 并设为 0600，不要提交到仓库。
+
+## 9. 仓库上下文挂载
 
 如需 Tree-sitter 仓库工具，在 Compose 的 `codeevo` 服务下增加专用只读目录：
 
@@ -134,7 +161,7 @@ volumes:
 
 宿主机目录必须按 `<owner>/<repository>` 组织。禁止挂载用户主目录、Docker Socket 或文件系统根目录。
 
-## 9. 停止与清理
+## 10. 停止与清理
 
 ```bash
 docker compose down
@@ -142,7 +169,7 @@ docker compose down
 
 该命令保留 PostgreSQL 与 Redis volumes。只有确认数据已有备份且不再需要时，才使用 `docker compose down --volumes`；该操作会删除持久数据。
 
-## 10. 常见故障
+## 11. 常见故障
 
 - `docker compose config` 报变量缺失：`.env` 中仍有必填项为空或文件不存在。
 - `/health/live` 成功但 `/health/ready` 返回 503：查看 PostgreSQL、Redis 与 CodeEvo 日志，重点检查密码、服务名和迁移。

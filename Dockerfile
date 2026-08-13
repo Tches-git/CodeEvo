@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.title="CodeEvo" \
       org.opencontainers.image.description="Evaluation-gated multi-agent code review platform" \
       org.opencontainers.image.source="https://github.com/Tches-git/CodeEvo" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.version="0.9.0" \
+      org.opencontainers.image.version="1.0.0" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

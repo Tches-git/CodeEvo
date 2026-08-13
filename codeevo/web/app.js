@@ -5,6 +5,7 @@ const titles = {
   overview: "运行总览",
   review: "发起审查",
   tasks: "任务中心",
+  benchmark: "路线对比",
   annotations: "标注工作台",
   skills: "Skill 注册中心",
   evolution: "演进实验室",
@@ -108,9 +109,20 @@ function setButtonBusy(button, busy, busyText) {
 }
 
 function applyRoleVisibility() {
+  const guest = currentRole === "guest";
   $$(".manager-only").forEach((element) => {
     element.classList.toggle("role-hidden", currentRole !== "admin");
   });
+  $$(".write-only").forEach((element) => element.classList.toggle("role-hidden", guest));
+  $$(".guest-only").forEach((element) => element.classList.toggle("role-hidden", !guest));
+  $("#viewer-mode").classList.toggle("hidden", !guest);
+  $("#showcase-notice").classList.toggle("hidden", !guest);
+  $("#create-fix").classList.toggle("role-hidden", guest);
+  $("#feedback-panel").classList.toggle("role-hidden", guest);
+  $("#avatar").textContent = guest ? "访" : "EA";
+  $("#tasks-intro").textContent = guest
+    ? "浏览已发布案例，核对 Agent 链路、工具证据与审查结论。"
+    : "跟踪任务状态，查看报告并创建安全修复分支。";
 }
 
 function show(view, updateHash = true) {
@@ -130,6 +142,7 @@ function show(view, updateHash = true) {
   if (updateHash) history.replaceState(null, "", `#${view}`);
 
   if (view === "tasks") loadTasks();
+  if (view === "benchmark") loadBenchmark();
   if (view === "annotations") loadAnnotationCases();
   if (view === "skills") loadSkills();
   if (view === "evolution") loadFailures();
@@ -173,22 +186,142 @@ function statCard(label, value, note, style, icon) {
   </article>`;
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat("zh-CN").format(Number(value || 0));
+}
+
+function renderRoute(route) {
+  const latency = route.latency_ms_p95 < 1000
+    ? `${Number(route.latency_ms_p95).toFixed(1)} ms`
+    : `${(Number(route.latency_ms_p95) / 1000).toFixed(2)} s`;
+  const takeaway = route.id === "local-rules"
+    ? "零模型成本，适合快速基线与明确规则。"
+    : route.id === "single-deepseek"
+      ? "当前综合 F1 最优，延迟与成本适中。"
+      : "Precision 最高，但召回、延迟和 Token 成本更差。";
+  return `<article class="route-card route-${escapeAttr(route.id)}">
+    <div class="route-title"><h3>${escapeHtml(route.label)}</h3><span>${escapeHtml(route.model_calls)} calls</span></div>
+    <div class="route-score"><b>${Number(route.f1).toFixed(2)}</b><span>F1</span></div>
+    <div class="route-metrics">
+      <span><b>${Number(route.precision).toFixed(2)}</b>Precision</span>
+      <span><b>${Number(route.recall).toFixed(2)}</b>Recall</span>
+      <span><b>${Number(route.clean_accuracy).toFixed(2)}</b>Clean accuracy</span>
+      <span><b>${latency}</b>P95 latency</span>
+      <span><b>${formatNumber(route.total_tokens)}</b>Tokens</span>
+    </div>
+    <p>${escapeHtml(takeaway)}</p>
+  </article>`;
+}
+
+async function loadBenchmark() {
+  const root = $("#route-comparison");
+  try {
+    const data = await api("/api/demo/benchmark");
+    $("#benchmark-facts").innerHTML = `
+      <span><b>${escapeHtml(data.cases)}</b>Validation cases</span>
+      <span><b>${escapeHtml(data.repositories)}</b>Repositories</span>
+      <span><b>${escapeHtml(data.holdout_used ? "已使用" : "未使用")}</b>Holdout</span>`;
+    root.innerHTML = (data.routes || []).map(renderRoute).join("");
+    $("#benchmark-disclosure").textContent = data.disclosure || "";
+  } catch (error) {
+    root.innerHTML = `<div class="empty-state"><span><b>路线数据加载失败</b>${escapeHtml(error.message)}</span></div>`;
+  }
+}
+
+const messageLabels = {
+  assignment: "任务分配",
+  context_window_prepared: "上下文预算",
+  tool_called: "工具调用",
+  candidate_finding: "候选结论",
+  critique: "反例质询",
+  evidence_result: "证据复现",
+  verification_decision: "验证门禁",
+  arbitration_decision: "最终仲裁",
+};
+
+function renderFinding(finding) {
+  const severity = String(finding.severity || "low").toLowerCase();
+  return `<article class="finding-card severity-${escapeAttr(severity)}">
+    <div class="finding-head">
+      <span class="finding-rule">${escapeHtml(finding.rule_id || "UNKNOWN")}</span>
+      <span class="finding-severity">${escapeHtml(severity.toUpperCase())}</span>
+    </div>
+    <h4>${escapeHtml(finding.title || "未命名风险")}</h4>
+    <p>${escapeHtml(finding.explanation || "")}</p>
+    <code>${escapeHtml(finding.path || "")}:${escapeHtml(finding.line || "?")}  ${escapeHtml(finding.evidence || "")}</code>
+    <dl><div><dt>修复</dt><dd>${escapeHtml(finding.fix || "")}</dd></div><div><dt>验证</dt><dd>${escapeHtml(finding.test || "")}</dd></div></dl>
+  </article>`;
+}
+
+function renderAgentMessage(message) {
+  const kind = message.kind || "event";
+  const content = message.content || {};
+  const detail = kind === "tool_called"
+    ? `${content.tool || "tool"} ${JSON.stringify(content.arguments || {})}`
+    : kind === "verification_decision"
+      ? `${content.approved ? "通过" : "拒绝"}，confidence ${content.confidence ?? "?"}`
+      : kind === "evidence_result"
+        ? `${content.reproducible ? "可复现" : "不可复现"}，${content.evidence_id || "无 evidence ID"}`
+        : kind === "context_window_prepared"
+          ? `${content.input_tokens || 0} input tokens，预留 ${content.reserved_tokens || 0}`
+          : kind === "arbitration_decision"
+            ? `保留 ${(content.approved_findings || []).length}，拒绝 ${(content.rejected_findings || []).length}`
+            : content.objective || content.rule_id || (content.accepted === true ? "已接受" : formatJson(content));
+  return `<li class="agent-event event-${escapeAttr(kind)}">
+    <span class="event-node">${escapeHtml(message.sender || "agent")}</span>
+    <div><b>${escapeHtml(messageLabels[kind] || kind)}</b><p>${escapeHtml(detail)}</p></div>
+    <span class="event-target">${escapeHtml(message.recipient || "")}</span>
+  </li>`;
+}
+
+function renderTaskExplorer(task) {
+  const report = task.report || {};
+  const input = task.input || {};
+  const findings = report.findings || [];
+  const trace = task.trace || [];
+  const messages = task.collaboration || [];
+  const route = input.route || report.reviewer || "unknown";
+  const latency = Number(input.latency_ms || 0);
+  return `<div class="task-hero">
+    <div><span class="task-route">${escapeHtml(route)}</span><h3>${escapeHtml(task.repository)}</h3><p>${escapeHtml(report.summary || "任务尚未生成报告")}</p></div>
+    <span class="risk risk-${escapeAttr(report.risk || "low")}">${escapeHtml(String(report.risk || "low").toUpperCase())}</span>
+  </div>
+  <div class="execution-strip">
+    <span><b>${escapeHtml(input.model || "none")}</b>Model</span>
+    <span><b>${latency < 1000 ? `${latency} ms` : `${(latency / 1000).toFixed(2)} s`}</b>Latency</span>
+    <span><b>${formatNumber(input.total_tokens)}</b>Tokens</span>
+    <span><b>${escapeHtml(input.model_calls ?? 0)}</b>Calls</span>
+  </div>
+  <section class="task-section"><div class="task-section-head"><h4>状态机</h4><span>${trace.length} transitions</span></div>
+    <ol class="state-timeline">${trace.map((item) => `<li><b>${escapeHtml(stateLabels[item.state] || item.state)}</b><span>${escapeHtml(item.message)}</span></li>`).join("")}</ol>
+  </section>
+  <section class="task-section"><div class="task-section-head"><h4>Agent 消息链</h4><span>${messages.length} messages</span></div>
+    <ol class="agent-timeline">${messages.map(renderAgentMessage).join("") || '<li class="empty-state">此路线没有持久化 Agent 消息。</li>'}</ol>
+  </section>
+  <section class="task-section"><div class="task-section-head"><h4>审查结论</h4><span>${findings.length} findings</span></div>
+    <div class="finding-list">${findings.map(renderFinding).join("") || '<div class="clean-result"><b>未发现当前规则覆盖的风险</b><span>Clean 只表示本次路线没有输出 Finding。</span></div>'}</div>
+  </section>`;
+}
+
 function renderLlmRuntime(llm = {}) {
   const enabled = Boolean(llm.enabled);
   const failed = Boolean(llm.error);
   const provider = String(llm.provider || "local");
   const model = String(llm.model || "");
+  const guestSnapshot = currentRole === "guest" && !enabled && !failed;
   const detail = failed
     ? "暂时无法读取模型配置"
     : enabled
       ? `${provider} / ${model || "默认模型"}，参与上下文审查与风险判断`
-      : "未配置模型，当前由确定性本地规则 Agent 兜底";
-  const state = failed ? "读取失败" : enabled ? "已启用" : "待配置";
+      : guestSnapshot
+        ? "线上实时模型已关闭，当前展示已发布 Benchmark 快照"
+        : "未配置模型，当前由确定性本地规则 Agent 兜底";
+  const state = failed ? "读取失败" : enabled ? "已启用" : guestSnapshot ? "快照模式" : "待配置";
   const runtime = failed
     ? "运行时状态未知"
     : enabled
       ? `${provider} / ${model || "模型已配置"}`
-      : "Local rules fallback";
+      : guestSnapshot ? "Published benchmark snapshot" : "Local rules fallback";
 
   const step = $("#llm-agent-step");
   step.classList.remove("is-pending");
@@ -212,6 +345,11 @@ function renderLlmRuntime(llm = {}) {
 async function loadDashboard() {
   try {
     const data = await api("/api/dashboard");
+    if (data.viewer?.role && data.viewer.role !== currentRole) {
+      currentRole = data.viewer.role;
+      localStorage.setItem("codeevo_role", currentRole);
+      applyRoleVisibility();
+    }
     renderLlmRuntime(data.llm);
     $("#system-status").textContent = `${data.queue} · ${data.orchestrator}`;
     const stats = data.stats || {};
@@ -250,22 +388,22 @@ async function loadTasks() {
 
 async function openTask(id) {
   show("tasks");
-  $("#task-report").textContent = "正在加载任务报告…";
+  $("#task-report").innerHTML = '<div class="task-loading"><span></span><span></span><span></span></div>';
   $("#feedback-panel").classList.add("hidden");
   try {
     const task = await api(`/v1/tasks/${encodeURIComponent(id)}`);
     selectedTask = id;
     selectedTaskData = task;
-    $("#task-report").textContent = formatJson(task);
-    $("#create-fix").classList.toggle("hidden", !(task.report && task.pull_request));
-    const feedbackReady = task.state === "SUCCESS" && task.report;
+    $("#task-report").innerHTML = renderTaskExplorer(task);
+    $("#create-fix").classList.toggle("hidden", currentRole === "guest" || !(task.report && task.pull_request));
+    const feedbackReady = currentRole !== "guest" && task.state === "SUCCESS" && task.report;
     $("#feedback-panel").classList.toggle("hidden", !feedbackReady);
     if (feedbackReady) {
       populateFeedbackFindings(task.report.findings || []);
       await loadTaskFeedback(id);
     }
   } catch (error) {
-    $("#task-report").textContent = error.message;
+    $("#task-report").innerHTML = `<div class="empty-state"><span><b>任务加载失败</b>${escapeHtml(error.message)}</span></div>`;
     selectedTaskData = null;
   }
 }
@@ -857,11 +995,35 @@ $("#refresh").addEventListener("click", async () => {
   const view = location.hash.slice(1) || "overview";
   if (view === "overview") await loadDashboard();
   else if (view === "tasks") await loadTasks();
+  else if (view === "benchmark") await loadBenchmark();
   else if (view === "annotations") await loadAnnotationCases();
   else if (view === "skills") await loadSkills();
   else if (view === "evolution") await loadFailures();
   else await loadDashboard();
   toast("数据已刷新");
+});
+
+$("#guest-login").addEventListener("click", async () => {
+  const button = $("#guest-login");
+  setButtonBusy(button, true, "正在创建只读会话…");
+  try {
+    const data = await api("/v1/auth/guest", { method: "POST" });
+    accessToken = data.access_token;
+    currentRole = data.role;
+    localStorage.setItem("codeevo_token", accessToken);
+    localStorage.setItem("codeevo_role", currentRole);
+    applyRoleVisibility();
+    $("#login-overlay").classList.add("hidden");
+    $("#logout").classList.remove("hidden");
+    $("#login-error").textContent = "";
+    show("overview");
+    await loadDashboard();
+    toast("已进入只读公开体验空间");
+  } catch (error) {
+    $("#login-error").textContent = error.message;
+  } finally {
+    setButtonBusy(button, false);
+  }
 });
 
 $("#login-form").addEventListener("submit", async (event) => {
@@ -916,9 +1078,20 @@ function updateDiffStats() {
 diffInput.addEventListener("input", updateDiffStats);
 updateDiffStats();
 
-if (accessToken) $("#logout").classList.remove("hidden");
-applyRoleVisibility();
-resetFindingEditor("submission");
-resetFindingEditor("adjudication");
-show(location.hash.slice(1) || "overview", false);
-loadDashboard();
+async function initialize() {
+  try {
+    const config = await api("/api/public-config");
+    $("#guest-login").classList.toggle("hidden", !config.guest_demo_enabled);
+    $("#guest-login").nextElementSibling?.classList.toggle("hidden", !config.guest_demo_enabled);
+  } catch (_error) {
+    $("#guest-login").classList.add("hidden");
+  }
+  if (accessToken) $("#logout").classList.remove("hidden");
+  applyRoleVisibility();
+  resetFindingEditor("submission");
+  resetFindingEditor("adjudication");
+  show(location.hash.slice(1) || "overview", false);
+  await loadDashboard();
+}
+
+initialize();

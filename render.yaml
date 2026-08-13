@@ -26,6 +26,12 @@ services:
         value: admin
       - key: CODEEVO_BOOTSTRAP_ADMIN_PASSWORD
         sync: false
+      - key: CODEEVO_GUEST_DEMO_ENABLED
+        value: "true"
+      - key: CODEEVO_GUEST_DEMO_TENANT_ID
+        value: public-demo
+      - key: CODEEVO_GUEST_DEMO_TTL_SECONDS
+        value: "300"
       - key: CODEEVO_LLM_PROVIDER
         value: local
       - key: CODEEVO_LOG_FORMAT

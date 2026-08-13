@@ -1,0 +1,8 @@
+[Unit]
+Description=CodeEvo host disk guard
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/opt/codeevo/credentials/ops.env
+ExecStart=/opt/codeevo/repository/ops/disk_guard.sh
+SuccessExitStatus=1

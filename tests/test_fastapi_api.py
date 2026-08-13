@@ -139,6 +139,57 @@ class FastApiTests(unittest.TestCase):
         self.assertEqual(302, callback.status_code)
         self.assertEqual("tenant-a", service.store.installation_tenant(321))
 
+    def test_guest_demo_is_isolated_and_read_only(self):
+        base = settings(self.path, auth=True)
+        config = Settings(**{
+            **base.__dict__,
+            "guest_demo_enabled": True,
+            "guest_demo_tenant_id": "public-demo",
+            "guest_demo_ttl_seconds": 300,
+        })
+        app = create_app(config)
+        with TestClient(app) as client:
+            session = client.post("/v1/auth/guest")
+            token = session.json()["access_token"]
+            headers = {"Authorization": "Bearer " + token}
+            dashboard = client.get("/api/dashboard", headers=headers)
+            tasks = client.get("/api/tasks", headers=headers)
+            task_id = tasks.json()["tasks"][0]["id"]
+            task = client.get("/v1/tasks/" + task_id, headers=headers)
+            benchmark = client.get("/api/demo/benchmark", headers=headers)
+            denied_review = client.post("/v1/reviews", headers=headers, json={
+                "repository": "codeevo/payment-service", "diff": DIFF,
+            })
+            denied_feedback = client.post(
+                "/v1/tasks/" + task_id + "/feedback", headers=headers,
+                json={"category": "accepted", "note": "should be denied"},
+            )
+            denied_annotation = client.post(
+                "/v1/annotations/cases/import", headers=headers,
+                json={
+                    "repository": "org/repo", "pull_request": 1,
+                    "license_spdx": "MIT", "license_evidence_url": "https://example.com/license",
+                },
+            )
+
+        self.assertEqual(200, session.status_code)
+        self.assertEqual("guest", session.json()["role"])
+        self.assertEqual("public-demo", session.json()["tenant_id"])
+        self.assertTrue(dashboard.json()["viewer"]["read_only"])
+        self.assertEqual(3, dashboard.json()["stats"]["tasks_total"])
+        self.assertEqual("public-demo", task.json()["tenant_id"])
+        self.assertTrue(task.json()["input"]["demo"])
+        self.assertEqual(3, len(benchmark.json()["routes"]))
+        self.assertEqual(403, denied_review.status_code)
+        self.assertEqual(403, denied_feedback.status_code)
+        self.assertEqual(403, denied_annotation.status_code)
+
+    def test_guest_endpoint_is_hidden_when_disabled(self):
+        app = create_app(settings(self.path, auth=True))
+        with TestClient(app) as client:
+            response = client.post("/v1/auth/guest")
+        self.assertEqual(404, response.status_code)
+
     def test_webhook_signature_is_required_even_for_ignored_events(self):
         secret = "webhook-secret"
         app = create_app(settings(self.path, webhook_secret=secret))

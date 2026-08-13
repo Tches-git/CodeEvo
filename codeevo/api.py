@@ -44,6 +44,7 @@ from .api_schemas import (
 )
 from .auth import Principal
 from .config import Settings
+from .demo import BENCHMARK_SNAPSHOT
 from .github import verify_signature
 from .metrics import metrics
 from .network import TrustedProxyResolver
@@ -78,7 +79,7 @@ def create_app(
     app = FastAPI(
         title="CodeEvo API",
         description="Evaluation-gated multi-agent code review and controlled evolution API.",
-        version="0.9.0",
+        version="1.0.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -191,11 +192,19 @@ def create_app(
             return principal
         return dependency
 
+    def require_any(*permissions: str):
+        def dependency(principal: Principal = Depends(authenticate)) -> Principal:
+            if not any(principal.can(permission) for permission in permissions):
+                raise HTTPException(status_code=403, detail="permission denied")
+            return principal
+        return dependency
+
     read_principal = require("read")
     review_principal = require("review")
     fix_principal = require("fix")
     manage_principal = require("manage")
     audit_principal = require("audit")
+    console_principal = require_any("read", "demo_read")
 
     def tenant_dead_letters(tenant_id: str, limit: int) -> list:
         values = review_service.queue.dead_letters(500)
@@ -209,6 +218,13 @@ def create_app(
         return FileResponse(WEB_ROOT / "index.html")
 
     app.mount("/assets", StaticFiles(directory=WEB_ROOT), name="assets")
+
+    @app.get("/api/public-config", tags=["console"])
+    def public_config():
+        return {
+            "version": "1.0.0",
+            "guest_demo_enabled": bool(config.auth_required and config.guest_demo_enabled),
+        }
 
     @app.get("/health", response_model=HealthResponse, tags=["operations"])
     def health():
@@ -259,6 +275,14 @@ def create_app(
         app.state.login_limiter.reset(limit_key)
         return result
 
+    @app.post("/v1/auth/guest", response_model=LoginResponse, tags=["authentication"])
+    def guest_login():
+        if not config.auth_required or not config.guest_demo_enabled:
+            raise HTTPException(status_code=404, detail="guest demo is not enabled")
+        return review_service.auth.guest_session(
+            config.guest_demo_tenant_id, config.guest_demo_ttl_seconds
+        )
+
     @app.post("/v1/reviews", response_model=ReviewSubmission, tags=["reviews"])
     def create_review(
         response: Response,
@@ -280,14 +304,14 @@ def create_app(
         return result
 
     @app.get("/v1/tasks/{task_id}", tags=["reviews"])
-    def get_task(task_id: str, principal: Principal = Depends(read_principal)):
+    def get_task(task_id: str, principal: Principal = Depends(console_principal)):
         task = review_service.store.get(task_id, principal.tenant_id)
         if not task:
             raise HTTPException(status_code=404, detail="task not found")
         return task
 
     @app.get("/v1/tasks/{task_id}/report", tags=["reviews"])
-    def get_report(task_id: str, principal: Principal = Depends(read_principal)):
+    def get_report(task_id: str, principal: Principal = Depends(console_principal)):
         task = review_service.store.get(task_id, principal.tenant_id)
         if not task or not task.get("report"):
             raise HTTPException(status_code=404, detail="task or report not found")
@@ -449,7 +473,7 @@ def create_app(
         )
 
     @app.get("/api/dashboard", tags=["console"])
-    def dashboard(principal: Principal = Depends(read_principal)):
+    def dashboard(principal: Principal = Depends(console_principal)):
         return {
             "stats": review_service.store.dashboard_stats(principal.tenant_id),
             "tasks": review_service.store.list_tasks(10, principal.tenant_id),
@@ -460,14 +484,25 @@ def create_app(
                 "provider": review_service.llm_config.get("provider", "local"),
                 "model": review_service.llm_config.get("model", ""),
             },
+            "viewer": {
+                "role": principal.role,
+                "read_only": principal.role == "guest",
+                "showcase": principal.role == "guest",
+            },
         }
 
     @app.get("/api/tasks", tags=["console"])
     def list_tasks(
         limit: int = Query(default=50, ge=1, le=500),
-        principal: Principal = Depends(read_principal),
+        principal: Principal = Depends(console_principal),
     ):
         return {"tasks": review_service.store.list_tasks(limit, principal.tenant_id)}
+
+    @app.get("/api/demo/benchmark", tags=["console"])
+    def demo_benchmark(principal: Principal = Depends(console_principal)):
+        if principal.role == "guest" and principal.tenant_id != config.guest_demo_tenant_id:
+            raise HTTPException(status_code=403, detail="guest tenant is not authorized")
+        return BENCHMARK_SNAPSHOT
 
     @app.get("/api/skills", tags=["console"])
     def list_skills(principal: Principal = Depends(read_principal)):

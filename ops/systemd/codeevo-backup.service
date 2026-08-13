@@ -1,0 +1,9 @@
+[Unit]
+Description=CodeEvo PostgreSQL backup
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/codeevo/repository
+EnvironmentFile=-/opt/codeevo/credentials/ops.env
+ExecStart=/opt/codeevo/repository/ops/backup_postgres.sh

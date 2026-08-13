@@ -13,3 +13,4 @@ output/
 work-eval.*/
 *.cache/
 evaluation_data/*.cache/
+backups/

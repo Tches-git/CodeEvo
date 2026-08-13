@@ -158,6 +158,9 @@ class Settings:
     alert_smtp_host: str = ""
     alert_email_to: str = ""
     continuous_eval_seconds: int = 0
+    guest_demo_enabled: bool = False
+    guest_demo_tenant_id: str = "public-demo"
+    guest_demo_ttl_seconds: int = 900
 
     def resolved_llm(self) -> Dict[str, object]:
         """Resolve a named provider to the existing OpenAI-compatible transport."""
@@ -272,6 +275,10 @@ class Settings:
             raise ValueError(
                 "CODEEVO_AUTH_SECRET must contain at least 32 bytes when authentication is enabled"
             )
+        if self.guest_demo_enabled and not self.auth_required:
+            raise ValueError("guest demo mode requires authentication")
+        if self.guest_demo_enabled and not self.guest_demo_tenant_id.strip():
+            raise ValueError("CODEEVO_GUEST_DEMO_TENANT_ID cannot be empty")
         if bool(self.bootstrap_admin_username) != bool(self.bootstrap_admin_password):
             raise ValueError("bootstrap admin username and password must be configured together")
         if self.login_max_attempts < 1:
@@ -408,4 +415,9 @@ class Settings:
             continuous_eval_seconds=_non_negative_int(
                 "CODEEVO_CONTINUOUS_EVAL_SECONDS", 0
             ),
+            guest_demo_enabled=_bool("CODEEVO_GUEST_DEMO_ENABLED", False),
+            guest_demo_tenant_id=os.getenv(
+                "CODEEVO_GUEST_DEMO_TENANT_ID", "public-demo"
+            ).strip(),
+            guest_demo_ttl_seconds=_int("CODEEVO_GUEST_DEMO_TTL_SECONDS", 900),
         )

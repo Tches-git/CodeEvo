@@ -49,3 +49,11 @@
 - 复用仓库级 Train、Validation、Holdout 分区并保护 Holdout 真值。（已完成）
 - 只将通过来源、位置、泄漏和重复门禁的案例导出到 Evaluation Harness。（已完成）
 - 提供管理台完整状态、响应式布局、演示数据和 PostgreSQL/SQLite 持久化。（已完成）
+
+## 第七阶段：v1.0 公开作品集与运维闭环（已完成）
+
+- 短期 Guest Session、隔离 `public-demo` 租户与服务端只读 RBAC。（已完成）
+- 三条路线的 Agent 消息、工具证据、Token、耗时和 Benchmark 对比。（已完成）
+- 招聘方导向的响应式登录首屏、访客导航、路线对比和任务详情。（已完成）
+- PostgreSQL 原子备份、校验、隔离恢复演练与保留策略。（已完成）
+- 容器/公网健康检查、磁盘告警、安全 Docker 清理与 systemd timers。（已完成）
