@@ -49,6 +49,12 @@ class ReviewRequest(ApiModel):
     pull_request: Optional[int] = Field(default=None, ge=1)
 
 
+class DemoReviewRequest(ApiModel):
+    sample: Optional[Literal["injection", "reliability", "clean"]] = None
+    diff: Optional[str] = None
+    github_pr_url: Optional[str] = Field(default=None, max_length=500)
+
+
 class ReviewSubmission(ApiModel):
     task_id: str
     state: str

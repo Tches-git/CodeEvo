@@ -15,8 +15,8 @@ Python / FastAPI / DeepSeek / Multi-Agent / Tree-sitter / PostgreSQL / Redis / D
   P50/P95/P99、Token 和成本，并将 Prompt/Skill/Route 候选接入 Shadow、Canary、激活与回滚门禁。
 - 基于 Vul4J 构建 40 条可审计 risk/clean 案例；真实 Validation 上单 Agent F1 0.50，多 Agent Precision 1.00，
   用实验说明多 Agent 的精度/召回/成本权衡，而非只展示架构复杂度。
-- 发布隔离的只读访客模式与三条可复核演示链路，后端 RBAC 拒绝所有写操作；配套 PostgreSQL 原子备份、
-  隔离恢复演练、健康探针和磁盘告警，使招聘方无需凭据即可安全验证项目。
+- 发布公开工程工作台：用临时 SQLite 真实执行本地 Agent Harness，逐行展示 Evidence 和 Finding；通过
+  专用 `demo_execute` 权限、GitHub URL 白名单、Diff 限制与限流隔离生产数据和付费模型。
 
 ## 30 秒口述
 
@@ -29,10 +29,10 @@ Python / FastAPI / DeepSeek / Multi-Agent / Tree-sitter / PostgreSQL / Redis / D
 
 - **Situation**：作品集既要允许招聘方直接体验，又不能暴露管理员能力、付费模型或真实租户数据。
 - **Task**：在不弱化生产认证边界的前提下，提供可验证的 Agent 工程证据并确保单机 Demo 可恢复。
-- **Action**：实现 5 分钟 Guest Principal、`public-demo` 租户隔离和后端 403 写门禁；固化三路线
-  Benchmark 快照与 Agent/Tool/Evidence 轨迹；增加备份校验、隔离恢复、systemd 探针和磁盘告警。
-- **Result**：招聘方一键即可比较 F1、延迟与 Token，并下钻到 Finding 证据；访客没有任何写权限，
-  服务具备每日备份、5 分钟健康检查和可重复恢复演练。
+- **Action**：实现 5 分钟 Guest Principal、`public-demo` 租户隔离和后端 403 生产写门禁；增加临时
+  Sandbox、Evaluation Lab 与 Evolution Lab；配套备份校验、隔离恢复、systemd 探针和磁盘告警。
+- **Result**：招聘方可亲自执行本地 Agent、比较 F1/延迟/Token，并检查 Holdout 与发布 Gate；访客不能
+  修改生产数据或触发付费模型，服务具备每日备份、5 分钟健康检查和可重复恢复演练。
 
 ## 高频追问
 

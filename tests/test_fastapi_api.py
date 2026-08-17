@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from codeevo.api import create_app
 from codeevo.config import Settings
+from codeevo.auth import ROLE_PERMISSIONS
 
 
 DIFF = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-old\n+eval(data)\n"
@@ -183,6 +184,104 @@ class FastApiTests(unittest.TestCase):
         self.assertEqual(403, denied_review.status_code)
         self.assertEqual(403, denied_feedback.status_code)
         self.assertEqual(403, denied_annotation.status_code)
+
+    def test_guest_sandbox_executes_real_harness_without_production_writes(self):
+        base = settings(self.path, auth=True)
+        config = Settings(**{
+            **base.__dict__,
+            "guest_demo_enabled": True,
+            "guest_demo_tenant_id": "public-demo",
+            "guest_demo_ttl_seconds": 300,
+            "demo_rate_limit": 5,
+        })
+        app = create_app(config)
+        with TestClient(app) as client:
+            session = client.post("/v1/auth/guest").json()
+            headers = {"Authorization": "Bearer " + session["access_token"]}
+            before = client.get("/api/tasks", headers=headers).json()["tasks"]
+            executed = client.post(
+                "/api/demo/reviews", headers=headers, json={"sample": "injection"}
+            )
+            after = client.get("/api/tasks", headers=headers).json()["tasks"]
+
+        self.assertIn("demo_execute", ROLE_PERMISSIONS["guest"])
+        self.assertFalse({"review", "fix", "manage", "audit"} & ROLE_PERMISSIONS["guest"])
+        self.assertEqual(201, executed.status_code)
+        result = executed.json()
+        self.assertEqual("SUCCESS", result["task"]["state"])
+        self.assertGreaterEqual(len(result["task"]["trace"]), 4)
+        self.assertGreater(len(result["task"]["collaboration"]), 0)
+        self.assertFalse(result["execution"]["llm_used"])
+        self.assertFalse(result["execution"]["github_writeback"])
+        self.assertTrue(result["execution"]["ephemeral"])
+        self.assertEqual(before, after)
+
+    def test_guest_sandbox_rejects_unsafe_inputs_and_enforces_rate_limit(self):
+        base = settings(self.path, auth=True)
+        config = Settings(**{
+            **base.__dict__,
+            "guest_demo_enabled": True,
+            "guest_demo_tenant_id": "public-demo",
+            "demo_rate_limit": 2,
+            "demo_rate_window_seconds": 60,
+            "demo_max_diff_bytes": 250,
+        })
+        app = create_app(config)
+        with TestClient(app) as client:
+            token = client.post("/v1/auth/guest").json()["access_token"]
+            headers = {"Authorization": "Bearer " + token}
+            invalid_url = client.post(
+                "/api/demo/reviews", headers=headers,
+                json={"github_pr_url": "https://example.com/private/pull/1"},
+            )
+            too_large = client.post(
+                "/api/demo/reviews", headers=headers,
+                json={"diff": DIFF + "+" + "x" * 300},
+            )
+            limited = client.post(
+                "/api/demo/reviews", headers=headers, json={"sample": "clean"}
+            )
+
+        self.assertEqual(400, invalid_url.status_code)
+        self.assertEqual(400, too_large.status_code)
+        self.assertEqual(429, limited.status_code)
+        self.assertGreater(int(limited.headers["retry-after"]), 0)
+
+    def test_published_evaluation_and_evolution_labs_are_real_and_holdout_safe(self):
+        base = settings(self.path, auth=True)
+        config = Settings(**{
+            **base.__dict__,
+            "guest_demo_enabled": True,
+            "guest_demo_tenant_id": "public-demo",
+        })
+        app = create_app(config)
+        with TestClient(app) as client:
+            token = client.post("/v1/auth/guest").json()["access_token"]
+            headers = {"Authorization": "Bearer " + token}
+            evaluation = client.get("/api/lab/evaluation", headers=headers)
+            case = client.get(
+                "/api/lab/evaluation/cases/VUL4J-11-risk", headers=headers
+            )
+            evolution = client.get("/api/lab/evolution", headers=headers)
+
+        self.assertEqual(200, evaluation.status_code)
+        evaluation_data = evaluation.json()
+        self.assertEqual(
+            "b4c7d8a80539fa3bcd5ebbd2b250a9fa42f58649982a97df0853424830cb3760",
+            evaluation_data["dataset"]["sha256"],
+        )
+        self.assertEqual(8, len(evaluation_data["cases"]))
+        self.assertEqual(3, len(evaluation_data["routes"]))
+        self.assertFalse(evaluation_data["holdout"]["truth_exposed"])
+        self.assertEqual("VUL4J-11-risk", case.json()["case"]["id"])
+        evolution_data = evolution.json()
+        self.assertEqual("activated", evolution_data["evolution_run"]["decision"])
+        self.assertEqual(
+            "eligible-for-shadow",
+            evolution_data["routing_policy"]["evaluation"]["decision"],
+        )
+        self.assertNotIn("case_results", evolution_data["holdout"]["baseline"])
+        self.assertFalse(evolution_data["holdout"]["case_truth_exposed"])
 
     def test_guest_endpoint_is_hidden_when_disabled(self):
         app = create_app(settings(self.path, auth=True))

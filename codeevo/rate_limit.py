@@ -50,3 +50,26 @@ class LoginRateLimiter:
         cutoff = now - self.window_seconds
         while failures and failures[0] <= cutoff:
             failures.popleft()
+
+
+class RequestRateLimiter:
+    """Thread-safe sliding-window limiter for bounded public operations."""
+
+    def __init__(self, maximum: int = 5, window_seconds: int = 3600):
+        self.maximum = max(1, int(maximum))
+        self.window_seconds = max(1, int(window_seconds))
+        self._requests: Dict[Hashable, Deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def consume(self, key: Hashable) -> int:
+        """Record one request and return zero, or seconds until retry."""
+        now = time.monotonic()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            requests = self._requests[key]
+            while requests and requests[0] <= cutoff:
+                requests.popleft()
+            if len(requests) >= self.maximum:
+                return max(1, math.ceil(requests[0] + self.window_seconds - now))
+            requests.append(now)
+            return 0

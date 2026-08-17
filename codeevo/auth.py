@@ -14,7 +14,7 @@ ROLE_PERMISSIONS = {
     "admin": {"read", "review", "fix", "manage", "audit"},
     "maintainer": {"read", "review", "fix"},
     "auditor": {"read", "audit"},
-    "guest": {"demo_read"},
+    "guest": {"demo_read", "demo_execute"},
 }
 
 

@@ -11,9 +11,9 @@
 [服务状态](https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/ready) ·
 [产品截图](docs/PRODUCT_DEMO.md)
 
-> **v1.0.0 已开放一键只读体验。** 无需账号或密码；短期访客会话只能读取隔离的
-> `public-demo` 租户，不能创建审查、反馈、修复或修改任何配置。实时付费模型保持关闭，页面展示
-> 已发布 Benchmark 快照和可复核 Agent 链路。
+> **v1.1.0 已开放公开工程工作台。** 无需账号或密码；短期访客会话可以运行隔离的本地
+> Agent Sandbox，并读取已发布的 Evaluation 与 Evolution 实验制品。Sandbox 使用临时数据库，
+> 不调用付费模型、不写回 GitHub，也不能创建生产任务、反馈、修复或修改配置。
 
 CodeEvo 是一个面向真实代码仓库的 AI Agent 工程项目：它不只让多个 Agent “讨论”，而是把
 **任务分解、工具调用、上下文压缩、证据绑定、评测门禁、灰度发布和回滚**做成一条可审计链路。
@@ -22,10 +22,8 @@ CodeEvo 是一个面向真实代码仓库的 AI Agent 工程项目：它不只�
 
 ![CodeEvo architecture](docs/assets/codeevo-architecture.svg)
 
-![CodeEvo 只读体验](docs/assets/codeevo-showcase-overview.jpg)
-
-> 真实服务截图：只读访客模式、多 Agent 协作链、审查统计与最近任务。完整页面说明见
-> [产品界面说明](docs/PRODUCT_DEMO.md)。
+公开界面包含 Review Workbench、Evaluation Lab、Evolution Lab、任务证据链和管理员标注工作台。
+完整交互说明见 [产品界面说明](docs/PRODUCT_DEMO.md)。
 
 ## 为什么值得看
 
@@ -37,6 +35,18 @@ CodeEvo 是一个面向真实代码仓库的 AI Agent 工程项目：它不只�
 | “自进化”容易污染线上 | Train/Validation/Holdout 仓库隔离，Prompt/Skill/Route 统一非退化门禁 |
 | 多 Agent 不一定更好 | 同数据、同评分逻辑比较本地、单 Agent、多 Agent，并公开质量/延迟/Token 代价 |
 | Demo 与生产混淆 | demo fixture、benchmark-derived、public PR 使用独立来源类型与完整性检查 |
+| 作品只能看不能操作 | 临时 SQLite Sandbox 真实执行 Harness，带独立权限、大小限制与滑动窗口限流 |
+
+## v1.1 工程工作台
+
+- **Review Workbench**：内置样例、粘贴 Unified Diff 或严格格式的公开 GitHub PR，真实执行
+  Security 与 Reliability Agent，返回状态机、协作消息、逐行证据和 Finding。
+- **Evaluation Lab**：直接读取已发布 Benchmark 制品，按仓库、CWE、risk/clean 筛选 8 个
+  Validation 案例，逐路线比较 TP、FP、FN、延迟、Token 和上下文元数据。
+- **Evolution Lab**：展示反馈到候选版本的父子关系、Validation 与封存 Holdout 结果、质量与
+  资源非退化 Gate、Shadow 资格和生产来源阻断状态。
+- **安全边界**：Guest 只新增 `demo_execute`，原始 `/v1/reviews`、修复、反馈、管理与审计接口
+  继续拒绝访问；公开执行结果不进入生产 PostgreSQL。
 
 ## 真实 Benchmark 结果
 
@@ -153,6 +163,7 @@ flowchart LR
 - 真实公开 PR 标注工作台、双人盲审、冲突仲裁与仓库级数据隔离
 - 通过来源和完整性门禁的 JSONL 可直接接入 Evaluation Harness
 - 可恢复 Benchmark Runner 公平对比本地规则、单 DeepSeek 与多 Agent 路线
+- 公开临时 Sandbox、真实逐行 Evidence、Evaluation Lab 与 Evolution Lab
 
 ## 快速开始
 

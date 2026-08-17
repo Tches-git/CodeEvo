@@ -3,12 +3,12 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 const titles = {
   overview: "运行总览",
-  review: "发起审查",
+  review: "审查工作台",
   tasks: "任务中心",
-  benchmark: "路线对比",
+  evaluation: "Evaluation Lab",
   annotations: "标注工作台",
   skills: "Skill 注册中心",
-  evolution: "演进实验室",
+  evolution: "Evolution Lab",
 };
 
 const stateLabels = {
@@ -34,6 +34,7 @@ let selectedTaskData = null;
 let accessToken = localStorage.getItem("codeevo_token") || "";
 let currentRole = localStorage.getItem("codeevo_role") || (accessToken ? "" : "admin");
 let selectedAnnotationCase = null;
+let evaluationData = null;
 let toastTimer = null;
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -110,6 +111,7 @@ function setButtonBusy(button, busy, busyText) {
 
 function applyRoleVisibility() {
   const guest = currentRole === "guest";
+  document.body.classList.toggle("guest-viewer", guest);
   $$(".manager-only").forEach((element) => {
     element.classList.toggle("role-hidden", currentRole !== "admin");
   });
@@ -142,10 +144,10 @@ function show(view, updateHash = true) {
   if (updateHash) history.replaceState(null, "", `#${view}`);
 
   if (view === "tasks") loadTasks();
-  if (view === "benchmark") loadBenchmark();
+  if (view === "evaluation") loadEvaluationLab();
   if (view === "annotations") loadAnnotationCases();
   if (view === "skills") loadSkills();
-  if (view === "evolution") loadFailures();
+  if (view === "evolution") loadEvolutionLab();
   window.scrollTo({ top: 0, behavior: reduceMotion.matches ? "auto" : "smooth" });
 }
 
@@ -227,6 +229,129 @@ async function loadBenchmark() {
     root.innerHTML = `<div class="empty-state"><span><b>路线数据加载失败</b>${escapeHtml(error.message)}</span></div>`;
   }
 }
+
+const routeLabels = {
+  "local-rules": "Local Rules",
+  "single-deepseek": "Single DeepSeek",
+  "multi-agent": "Multi Agent",
+};
+
+function metricValue(value, digits = 2) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(digits) : "N/A";
+}
+
+function renderEvaluationRoutes(routes) {
+  const sorted = [...routes].sort((a, b) => Number(b.metrics.f1) - Number(a.metrics.f1));
+  return `<div class="route-table-head"><span>Route</span><span>Precision</span><span>Recall</span><span>F1</span><span>Clean</span><span>P95</span><span>Tokens</span><span>Calls</span></div>
+    ${sorted.map((route, index) => {
+      const usage = route.resource_usage || {};
+      const latency = Number(usage.latency_ms_p95 || 0);
+      return `<div class="route-table-row">
+        <span class="route-identity"><b>${escapeHtml(routeLabels[route.id] || route.id)}</b><small>${index === 0 ? "质量排名 1" : escapeHtml(route.reviewer)}</small></span>
+        <span data-label="Precision">${metricValue(route.metrics.precision)}</span>
+        <span data-label="Recall">${metricValue(route.metrics.recall)}</span>
+        <span data-label="F1" class="route-f1">${metricValue(route.metrics.f1)}</span>
+        <span data-label="Clean">${metricValue(route.metrics.clean_accuracy)}</span>
+        <span data-label="P95">${latency < 1000 ? `${metricValue(latency, 1)} ms` : `${metricValue(latency / 1000)} s`}</span>
+        <span data-label="Tokens">${formatNumber(usage.total_tokens)}</span>
+        <span data-label="Calls">${formatNumber(usage.model_calls)}</span>
+      </div>`;
+    }).join("")}`;
+}
+
+function routeOutcomeCode(outcome) {
+  if (!outcome?.execution_success) return "ERR";
+  if (Number(outcome.tp) > 0) return "TP";
+  if (Number(outcome.fp) > 0) return "FP";
+  if (Number(outcome.fn) > 0) return "FN";
+  return outcome.clean_hit ? "TN" : "MISS";
+}
+
+function filteredEvaluationCases() {
+  if (!evaluationData) return [];
+  const repository = $("#eval-repository").value;
+  const cwe = $("#eval-cwe").value;
+  const kind = $("#eval-kind").value;
+  return (evaluationData.cases || []).filter((item) =>
+    (!repository || item.repository === repository)
+    && (!cwe || (item.target_cwes || []).includes(cwe))
+    && (!kind || item.kind === kind));
+}
+
+function renderEvaluationCases() {
+  const cases = filteredEvaluationCases();
+  $("#eval-case-count").textContent = `${cases.length} 个 Validation 案例`;
+  $("#evaluation-cases").innerHTML = cases.length ? `<div class="case-table-head"><span>Case</span><span>CWE</span><span>Local</span><span>Single</span><span>Multi</span></div>${cases.map((item) => `<button class="case-table-row" type="button" data-eval-case="${escapeAttr(item.id)}">
+      <span><b>${escapeHtml(item.id)}</b><small>${escapeHtml(item.repository)}</small></span>
+      <span><b>${escapeHtml((item.target_cwes || []).join(", ") || "Clean")}</b><small>${escapeHtml(item.kind)}</small></span>
+      ${["local-rules", "single-deepseek", "multi-agent"].map((route) => {
+        const code = routeOutcomeCode(item.routes?.[route]);
+        return `<span class="outcome outcome-${code.toLowerCase()}">${code}</span>`;
+      }).join("")}
+    </button>`).join("")}` : '<div class="inspector-empty"><b>没有匹配案例</b><span>调整仓库、CWE 或案例类型筛选。</span></div>';
+  $$('[data-eval-case]', $("#evaluation-cases")).forEach((button) => {
+    button.addEventListener("click", () => openEvaluationCase(button.dataset.evalCase));
+  });
+}
+
+function findingSummary(finding) {
+  const location = finding.path ? `${finding.path}:${finding.start_line || finding.line || "?"}` : "位置未提供";
+  return `<li><b>${escapeHtml(finding.cwe || finding.rule_id || "Finding")}</b><code>${escapeHtml(location)}</code><span>${escapeHtml(finding.title || finding.explanation || finding.severity || "")}</span></li>`;
+}
+
+async function openEvaluationCase(caseId) {
+  const root = $("#evaluation-case-detail");
+  root.innerHTML = '<div class="task-loading"><span></span><span></span><span></span></div>';
+  try {
+    const data = await api(`/api/lab/evaluation/cases/${encodeURIComponent(caseId)}`);
+    const item = data.case;
+    root.innerHTML = `<div class="case-detail-head"><div><span>${escapeHtml(item.kind.toUpperCase())}</span><h3>${escapeHtml(item.id)}</h3><p>${escapeHtml(item.repository)} / ${escapeHtml((item.target_cwes || []).join(", ") || "no target CWE")}</p></div><code>${escapeHtml(String(data.dataset_sha256).slice(0, 12))}</code></div>
+      <div class="route-inspections">${Object.entries(item.routes || {}).map(([routeId, outcome]) => {
+        const usage = outcome.usage || {};
+        const expected = outcome.expected_findings || [];
+        const predicted = outcome.predicted_findings || [];
+        return `<section class="route-inspection">
+          <div class="route-inspection-head"><b>${escapeHtml(routeLabels[routeId] || routeId)}</b><span class="outcome outcome-${routeOutcomeCode(outcome).toLowerCase()}">${routeOutcomeCode(outcome)}</span></div>
+          <div class="inspection-metrics"><span><b>${metricValue(outcome.latency_ms, 1)} ms</b>Latency</span><span><b>${formatNumber(usage.total_tokens)}</b>Tokens</span><span><b>${formatNumber(usage.model_calls)}</b>Calls</span></div>
+          <details><summary>Expected ${expected.length}</summary><ul>${expected.map(findingSummary).join("") || "<li>Clean case</li>"}</ul></details>
+          <details><summary>Predicted ${predicted.length}</summary><ul>${predicted.map(findingSummary).join("") || "<li>No finding</li>"}</ul></details>
+        </section>`;
+      }).join("")}</div>`;
+  } catch (error) {
+    root.innerHTML = `<div class="inspector-empty error-state"><b>案例加载失败</b><span>${escapeHtml(error.message)}</span></div>`;
+  }
+}
+
+async function loadEvaluationLab() {
+  try {
+    evaluationData = await api("/api/lab/evaluation");
+    const data = evaluationData;
+    const experiment = data.experiment || {};
+    const dataset = data.dataset || {};
+    $("#evaluation-artifact").innerHTML = `<span>DATASET SHA-256</span><code>${escapeHtml(dataset.sha256 || "unavailable")}</code>`;
+    $("#evaluation-meta").innerHTML = [
+      [dataset.cases, "Validation cases"],
+      [dataset.repositories, "Repositories"],
+      [dataset.risk_cases, "Risk"],
+      [dataset.clean_cases, "Clean"],
+      [`${metricValue(experiment.duration_seconds, 1)} s`, "Duration"],
+      [experiment.resume_enabled ? "Enabled" : "Disabled", "Checkpoint resume"],
+    ].map(([value, label]) => `<span><b>${escapeHtml(value)}</b>${escapeHtml(label)}</span>`).join("");
+    $("#evaluation-routes").innerHTML = renderEvaluationRoutes(data.routes || []);
+    const repository = $("#eval-repository");
+    const cwe = $("#eval-cwe");
+    repository.innerHTML = '<option value="">全部仓库</option>' + (data.filters.repositories || []).map((value) => `<option>${escapeHtml(value)}</option>`).join("");
+    cwe.innerHTML = '<option value="">全部 CWE</option>' + (data.filters.cwes || []).map((value) => `<option>${escapeHtml(value)}</option>`).join("");
+    renderEvaluationCases();
+    const failures = data.failure_counts || {};
+    $("#evaluation-failures").innerHTML = `<div><h3>失败分布</h3><p>统计三条路线在同一批 Validation 案例上的错误，不包含 Holdout 真值。</p></div><span><b>${formatNumber(failures.false_negative)}</b>False negative</span><span><b>${formatNumber(failures.false_positive)}</b>False positive</span><span><b>${formatNumber(failures.execution_error)}</b>Execution error</span><span><b>${data.holdout?.truth_exposed ? "EXPOSED" : "SEALED"}</b>Holdout truth</span>`;
+  } catch (error) {
+    $("#evaluation-meta").innerHTML = `<div class="inspector-empty error-state"><b>实验制品加载失败</b><span>${escapeHtml(error.message)}</span></div>`;
+  }
+}
+
+[$("#eval-repository"), $("#eval-cwe"), $("#eval-kind")].forEach((element) => element.addEventListener("change", renderEvaluationCases));
 
 const messageLabels = {
   assignment: "任务分配",
@@ -352,6 +477,7 @@ async function loadDashboard() {
     }
     renderLlmRuntime(data.llm);
     $("#system-status").textContent = `${data.queue} · ${data.orchestrator}`;
+    $("#runtime-mode").textContent = data.llm?.enabled ? `${data.llm.provider} / ${data.llm.model}` : "local deterministic";
     const stats = data.stats || {};
     const rate = Math.round(Number(stats.success_rate || 0) * 100);
     $("#stats").innerHTML = [
@@ -510,6 +636,55 @@ async function loadFailures() {
     $("#evolution-status").textContent = "暂时无法读取评测状态。";
     $("#failure-list").innerHTML = '<div class="empty-state"><span>反馈加载失败</span></div>';
     toast(error.message);
+  }
+}
+
+function scoreDelta(value) {
+  const number = Number(value || 0);
+  return `${number >= 0 ? "+" : ""}${number.toFixed(4)}`;
+}
+
+function gateRows(gates, scope) {
+  return Object.entries(gates || {}).map(([name, gate]) => `<div class="gate-row">
+    <span><b>${escapeHtml(name.replaceAll("_", " "))}</b><small>${escapeHtml(scope)}</small></span>
+    <span data-label="Baseline">${gate.baseline == null ? "N/A" : metricValue(gate.baseline, 4)}</span>
+    <span data-label="Candidate">${gate.candidate == null ? "N/A" : metricValue(gate.candidate, 4)}</span>
+    <span data-label="Limit">${gate.maximum == null ? gate.minimum_delta == null ? "non-regression" : `+${gate.minimum_delta}` : metricValue(gate.maximum, 4)}</span>
+    <em class="gate-${gate.passed ? "pass" : "fail"}">${gate.passed ? "PASS" : "FAIL"}</em>
+  </div>`).join("");
+}
+
+async function loadEvolutionLab() {
+  const proofRoot = $("#evolution-proof");
+  const gateRoot = $("#evolution-gates");
+  try {
+    const data = await api("/api/lab/evolution");
+    const validation = data.validation || {};
+    const holdout = data.holdout || {};
+    const feedback = data.feedback || {};
+    const run = data.evolution_run || {};
+    const versions = data.versions || [];
+    const active = versions.find((item) => item.active) || {};
+    proofRoot.innerHTML = `<article class="proof-summary panel">
+        <div class="proof-title"><span>BEHAVIORAL EVOLUTION</span><b>${escapeHtml(run.decision || "unknown")}</b></div>
+        <h3>${escapeHtml(feedback.missed_findings || 0)} 个漏报生成候选，${escapeHtml(feedback.resolved_after_activation || 0)} 个在激活后解决。</h3>
+        <p>反馈自动生成新提示词版本。同一审查器改变行为，并通过 Validation 提升与 Holdout 非退化门禁。</p>
+        <div class="learned-rules">${(feedback.learned_rule_ids || []).map((value) => `<code>${escapeHtml(value)}</code>`).join("")}</div>
+      </article>
+      <article class="score-compare panel"><div class="proof-title"><span>VALIDATION</span><b>${scoreDelta(validation.delta?.score)}</b></div><div class="score-pair"><span><small>Baseline</small><b>${metricValue(validation.baseline?.score, 4)}</b></span><i></i><span><small>Candidate</small><b>${metricValue(validation.candidate?.score, 4)}</b></span></div><p>${escapeHtml(validation.candidate?.cases || 0)} cases / Recall ${metricValue(validation.candidate?.recall)}</p></article>
+      <article class="score-compare panel"><div class="proof-title"><span>HOLDOUT</span><b>${scoreDelta(holdout.delta?.score)}</b></div><div class="score-pair"><span><small>Baseline</small><b>${metricValue(holdout.baseline?.score, 4)}</b></span><i></i><span><small>Candidate</small><b>${metricValue(holdout.candidate?.score, 4)}</b></span></div><p>${escapeHtml(holdout.candidate?.cases || 0)} sealed cases / Truth ${holdout.case_truth_exposed ? "exposed" : "sealed"}</p></article>
+      <article class="version-lineage panel"><div class="proof-title"><span>VERSION LINEAGE</span><b>v${escapeHtml(active.version || "?")}</b></div><div class="version-chain">${versions.map((version) => `<span class="${version.active ? "active" : ""}"><b>v${escapeHtml(version.version)}</b><small>score ${metricValue(version.score, 4)}</small><code>${escapeHtml(String(version.prompt_sha256 || "").slice(0, 10))}</code></span>`).join("<i></i>")}</div><p>Parent v${escapeHtml(active.parent_version || "none")} / active ${active.active ? "yes" : "no"}</p></article>`;
+    const validationGates = run.gates?.validation_policy?.gates || {};
+    const holdoutGates = run.gates?.holdout_policy?.gates || {};
+    const routing = data.routing_policy?.evaluation || {};
+    gateRoot.innerHTML = `<div class="gate-head"><div><h3>质量与资源门禁</h3><p>每一项都必须通过。资源预算与质量指标拥有同等否决权。</p></div><span class="gate-${routing.passed ? "pass" : "fail"}">${escapeHtml(routing.decision || "unknown")}</span></div>
+      <div class="gate-table-head"><span>Gate</span><span>Baseline</span><span>Candidate</span><span>Limit</span><span>Result</span></div>
+      ${gateRows(validationGates, "validation")}${gateRows(holdoutGates, "holdout")}${gateRows(routing.gates || {}, "routing")}
+      <div class="release-decision"><span><b>${data.release_gate?.quantitative_passed ? "PASS" : "FAIL"}</b>Quantitative gate</span><span><b>${data.release_gate?.production_data_provenance_passed ? "PASS" : "BLOCKED"}</b>Production provenance</span><span><b>${data.release_gate?.production_activation_allowed ? "ALLOWED" : "NOT ALLOWED"}</b>Production activation</span></div>`;
+    if (currentRole !== "guest") await loadFailures();
+  } catch (error) {
+    proofRoot.innerHTML = `<div class="panel inspector-empty error-state"><b>演进证明加载失败</b><span>${escapeHtml(error.message)}</span></div>`;
+    gateRoot.innerHTML = "";
   }
 }
 
@@ -831,6 +1006,93 @@ $("#annotation-status-filter").addEventListener("change", loadAnnotationCases);
 $("#annotation-split-filter").addEventListener("change", loadAnnotationCases);
 $("#refresh-annotations").addEventListener("click", loadAnnotationCases);
 
+const sandboxSamples = {
+  injection: "--- a/payments/settlement.py\n+++ b/payments/settlement.py\n@@ -20,2 +20,4 @@\n def settle(reference):\n-    return queue(reference)\n+    command = 'settle ' + reference\n+    subprocess.run(command, shell=True)\n+    print(reference)\n+    return True\n",
+  reliability: "--- a/jobs/worker.py\n+++ b/jobs/worker.py\n@@ -7,2 +7,5 @@\n def execute(job):\n-    return runner(job)\n+    try:\n+        return runner(job)\n+    except Exception:\n+        pass\n",
+  clean: "--- a/catalog/items.py\n+++ b/catalog/items.py\n@@ -3,2 +3,3 @@\n def normalize(value):\n-    return value\n+    normalized = value.strip().lower()\n+    return normalized\n",
+};
+
+function renderDiffEvidence(diff, findings) {
+  if (!diff) return '<div class="code-unavailable">远程 PR Diff 不在响应中回显，Finding 仍保留服务端定位证据。</div>';
+  let currentPath = "";
+  let newLine = 0;
+  const findingLines = new Set((findings || []).map((item) => `${item.path}:${item.line}`));
+  const rows = String(diff).split(/\r?\n/).map((line) => {
+    if (line.startsWith("+++ b/")) currentPath = line.slice(6);
+    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)/);
+    if (hunk) newLine = Number(hunk[1]);
+    let lineNumber = "";
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      lineNumber = newLine;
+      newLine += 1;
+    } else if (!line.startsWith("-") && !line.startsWith("@@") && !line.startsWith("---") && !line.startsWith("+++")) {
+      lineNumber = newLine || "";
+      if (newLine) newLine += 1;
+    }
+    const matched = lineNumber && findingLines.has(`${currentPath}:${lineNumber}`);
+    const kind = line.startsWith("+") && !line.startsWith("+++") ? " add" : line.startsWith("-") && !line.startsWith("---") ? " remove" : line.startsWith("@@") ? " hunk" : "";
+    return `<span class="code-row${kind}${matched ? " has-finding" : ""}"><i>${escapeHtml(lineNumber)}</i><code>${escapeHtml(line || " ")}</code>${matched ? "<b>FINDING</b>" : ""}</span>`;
+  }).join("");
+  return `<div class="code-evidence" tabindex="0">${rows}</div>`;
+}
+
+function renderSandboxResult(data, diff) {
+  const execution = data.execution || {};
+  const task = data.task || {};
+  const findings = task.report?.findings || [];
+  return `<div class="sandbox-result-head"><div><span>EXECUTION COMPLETE</span><h3>${escapeHtml(task.repository || "sandbox")}</h3></div><b>${metricValue(execution.duration_ms, 1)} ms</b></div>
+    <div class="sandbox-provenance"><span><b>${execution.llm_used ? "YES" : "NO"}</b>LLM used</span><span><b>${execution.ephemeral ? "YES" : "NO"}</b>Ephemeral</span><span><b>${execution.github_writeback ? "YES" : "NO"}</b>Writeback</span><span><b>${findings.length}</b>Findings</span></div>
+    <details class="evidence-code" open><summary>逐行证据</summary>${renderDiffEvidence(diff, findings)}</details>
+    <div class="sandbox-task-explorer">${renderTaskExplorer(task)}</div>`;
+}
+
+$$('input[name="source"]', $("#sandbox-form")).forEach((input) => {
+  input.addEventListener("change", () => {
+    $$('[data-source-panel]', $("#sandbox-form")).forEach((panel) => panel.classList.toggle("hidden", panel.dataset.sourcePanel !== input.value));
+  });
+});
+
+const sandboxDiffInput = $('textarea[name="sandbox_diff"]', $("#sandbox-form"));
+sandboxDiffInput.addEventListener("input", () => {
+  const value = sandboxDiffInput.value;
+  $("#sandbox-diff-stats").textContent = `${value ? value.split(/\r?\n/).length : 0} 行，${value.length} 字符`;
+});
+
+$("#sandbox-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = $('button[type="submit"]', form);
+  const values = new FormData(form);
+  const source = String(values.get("source"));
+  const body = {};
+  let diff = "";
+  if (source === "sample") {
+    body.sample = String(values.get("sample"));
+    diff = sandboxSamples[body.sample] || "";
+  } else if (source === "diff") {
+    body.diff = String(values.get("sandbox_diff") || "");
+    diff = body.diff;
+  } else {
+    body.github_pr_url = String(values.get("github_pr_url") || "").trim();
+  }
+  const output = $("#sandbox-output");
+  output.innerHTML = '<div class="sandbox-running"><span></span><b>Harness 正在执行</b><small>Parse / Plan / Execute / Gate</small></div>';
+  setButtonBusy(button, true, "正在执行...");
+  try {
+    const data = await api("/api/demo/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    output.innerHTML = renderSandboxResult(data, diff);
+    toast("Sandbox 审查完成");
+  } catch (error) {
+    output.innerHTML = `<div class="inspector-empty error-state"><b>执行失败</b><span>${escapeHtml(error.message)}</span></div>`;
+  } finally {
+    setButtonBusy(button, false);
+  }
+});
+
 $("#review-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -995,10 +1257,10 @@ $("#refresh").addEventListener("click", async () => {
   const view = location.hash.slice(1) || "overview";
   if (view === "overview") await loadDashboard();
   else if (view === "tasks") await loadTasks();
-  else if (view === "benchmark") await loadBenchmark();
+  else if (view === "evaluation") await loadEvaluationLab();
   else if (view === "annotations") await loadAnnotationCases();
   else if (view === "skills") await loadSkills();
-  else if (view === "evolution") await loadFailures();
+  else if (view === "evolution") await loadEvolutionLab();
   else await loadDashboard();
   toast("数据已刷新");
 });
@@ -1018,7 +1280,7 @@ $("#guest-login").addEventListener("click", async () => {
     $("#login-error").textContent = "";
     show("overview");
     await loadDashboard();
-    toast("已进入只读公开体验空间");
+    toast("已进入公开工程工作台");
   } catch (error) {
     $("#login-error").textContent = error.message;
   } finally {

@@ -1,31 +1,38 @@
 # CodeEvo 产品界面
 
-[一键打开只读 Demo](https://vm-0-13-ubuntu.taila0420b.ts.net:8443) ·
+[打开公开工程工作台](https://vm-0-13-ubuntu.taila0420b.ts.net:8443) ·
 [查看服务状态](https://vm-0-13-ubuntu.taila0420b.ts.net:8443/health/ready)
 
-v1.0.0 的公开界面面向 AI Agent 招聘方设计：无需凭据，先比较真实路线指标，再下钻到状态机、Agent
-消息、工具调用、证据和 Finding。访客不能创建或修改任何数据。
+v1.1.0 的公开界面面向 AI Agent 招聘方和开发者：无需凭据即可执行隔离的本地 Agent Sandbox，
+比较真实路线实验，并查看受门禁控制的自进化证明。访客不能修改生产数据。
 
 ## 一键体验首屏
 
 ![一键体验首屏](assets/codeevo-showcase-login.jpg)
 
-左侧先解释项目的核心判断：“先看证据，再相信 Agent”，右侧保留维护者登录。一键体验签发短期只读会话，
-不触发模型调用。
+左侧解释项目的核心判断：“先看证据，再相信 Agent”，右侧保留维护者登录。公开入口签发短期会话，
+允许调用隔离 Sandbox，但不触发外部模型。
 
 ## 运行总览
 
-![只读运行总览](assets/codeevo-showcase-overview.jpg)
+运行总览展示真实 Runtime 阶段、当前本地模型状态、任务统计和 Agent 协作链。页面明确标记快照模式，
+避免把已发布 DeepSeek 结果误解为实时在线模型。
 
-访客导航只包含运行总览、任务中心和路线对比。页面明确标记快照模式，避免把已发布 DeepSeek 结果误解为
-实时在线模型。
+## Review Workbench
 
-## 路线对比
+公开 Workbench 支持三类输入：内置安全样例、粘贴 Unified Diff、严格格式的公开 GitHub PR URL。
+每次请求使用临时 SQLite，真实执行 Parse、Plan、Execute、Gate，并返回逐行证据、Agent 消息和 Finding。
 
-![路线对比](assets/codeevo-showcase-benchmark.jpg)
+## Evaluation Lab
 
-同一 Validation、同一评分逻辑比较 Local rules、Single DeepSeek 和 Multi-agent。展示 Precision、Recall、
-F1、Clean Accuracy、P95、Tokens 和 Model calls，并坦诚呈现复杂架构不一定取得更高 F1。
+同一 Validation、同一评分逻辑比较 Local Rules、Single DeepSeek 和 Multi Agent。除 Precision、Recall、
+F1、Clean Accuracy、P95、Tokens 和 Calls 外，还能按仓库、CWE、risk/clean 筛选并展开单个案例，
+直接查看 TP、FP、FN、真值匹配和资源成本。
+
+## Evolution Lab
+
+演进页面展示失败反馈、学到的规则、Prompt 父子版本、Validation 与封存 Holdout 增量、质量和资源 Gate，
+以及 Shadow 资格。即使量化门禁通过，生产数据来源未通过时仍明确禁止生产激活。
 
 ## Agent 任务详情
 
@@ -53,4 +60,4 @@ CODEEVO_GUEST_DEMO_ENABLED=true \
 python -m codeevo
 ```
 
-浏览器打开 `http://127.0.0.1:8080`，点击“一键体验只读 Demo”。
+浏览器打开 `http://127.0.0.1:8080`，点击“进入公开工程工作台”。

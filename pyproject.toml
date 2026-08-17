@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codeevo"
-version = "1.0.0"
+version = "1.1.0"
 description = "Evaluation-gated multi-agent code review platform"
 readme = "README.md"
 requires-python = ">=3.11"

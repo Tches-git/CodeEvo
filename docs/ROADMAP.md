@@ -57,3 +57,12 @@
 - 招聘方导向的响应式登录首屏、访客导航、路线对比和任务详情。（已完成）
 - PostgreSQL 原子备份、校验、隔离恢复演练与保留策略。（已完成）
 - 容器/公网健康检查、磁盘告警、安全 Docker 清理与 systemd timers。（已完成）
+
+## 第八阶段：v1.1 公开工程工作台（已完成）
+
+- 临时 SQLite Sandbox 真实执行本地多 Agent Harness，不污染生产任务。（已完成）
+- 内置样例、Unified Diff 与固定 `api.github.com` 的公开 PR 输入。（已完成）
+- Evaluation Lab 按案例比较三路线 TP/FP/FN、延迟、Token 和上下文元数据。（已完成）
+- Evolution Lab 展示版本父子关系、Validation/Holdout、资源 Gate 和发布阻断。（已完成）
+- Guest 专用执行权限、Diff 大小限制、滑动窗口限流和线上本地模型边界。（已完成）
+- 深色开发者工具视觉、1280 桌面与 390 移动端交互验收。（已完成）

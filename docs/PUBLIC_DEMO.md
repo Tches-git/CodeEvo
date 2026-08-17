@@ -9,8 +9,9 @@
 - 数据层：PostgreSQL 16 + Redis 7
 - 实时 Agent：本地确定性规则，不需要模型 Key
 
-首页提供“一键体验只读 Demo”。访客会话约 5 分钟，不需要账号密码，只能读取隔离的
-`public-demo` 租户。三个展示案例包含已发布的 DeepSeek Benchmark 快照，但浏览过程不会调用付费模型。
+首页提供“进入公开工程工作台”。访客会话约 5 分钟，不需要账号密码，可以读取隔离的
+`public-demo` 租户并运行临时本地 Agent Sandbox。已发布的 DeepSeek Benchmark 只作为实验制品展示，
+浏览和 Sandbox 执行都不会调用付费模型。
 
 ## 部署布局
 
@@ -35,10 +36,12 @@ codeevo-demo              独立 Compose 项目
 ## 访客安全边界
 
 - `CODEEVO_AUTH_REQUIRED=true`，Guest 不是绕过认证；
-- Guest Principal 只有 `demo_read`，没有 `read/review/fix/manage/audit`；
+- Guest Principal 只有 `demo_read/demo_execute`，没有 `read/review/fix/manage/audit`；
 - Guest 固定进入 `public-demo`，不能传入或切换租户；
-- 只允许 Dashboard、任务列表/报告和 Benchmark；
-- 写入口在 UI 隐藏，后端仍对直接 API 请求返回 403；
+- 只允许 Dashboard、任务列表/报告、Evaluation/Evolution 实验制品和临时 Sandbox；
+- Sandbox 使用临时 SQLite，只加载本地 Security/Reliability Agent，请求结束后自动销毁；
+- GitHub 输入只接受严格 PR URL 并固定请求 `api.github.com`，同时限制 Diff 大小和执行频率；
+- 生产写入口在 UI 隐藏，后端仍对直接 API 请求返回 403；
 - 自动 PR 回写、自动修复和付费模型在线调用保持关闭。
 
 ## 日常检查
@@ -72,7 +75,7 @@ ssh tencent-111 '
 '
 ```
 
-服务器 `.env` 至少应包含 Guest 配置和 `CODEEVO_IMAGE_TAG=1.0.0`，但不要输出或提交完整文件。
+服务器 `.env` 至少应包含 Guest 配置和 `CODEEVO_IMAGE_TAG=1.1.0`，但不要输出或提交完整文件。
 
 ## 备份、恢复与告警
 
@@ -89,7 +92,8 @@ ssh tencent-111 '
 
 - `/health/live` 与 `/health/ready` 为 HTTP 200；
 - 未登录业务 API 返回 401，Guest 登录返回短期 Token；
-- Guest 可读取 3 个案例和路线对比，任何写请求返回 403；
+- Guest 可读取 3 个展示任务、8 个 Validation 案例和演进证明，并可执行隔离 Sandbox；
+- Guest 对生产审查、反馈、修复、标注和配置写请求返回 403；
 - PostgreSQL、Redis、CodeEvo 容器均 healthy；
 - 最新备份可通过 `pg_restore --list` 并成功恢复到隔离数据库；
 - 重启 CodeEvo 后 readiness 恢复，Guest 登录仍可用；

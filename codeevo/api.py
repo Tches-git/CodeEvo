@@ -26,6 +26,7 @@ from .api_schemas import (
     AnnotationImportRequest,
     AnnotationSubmissionRequest,
     DeadLetterReplayRequest,
+    DemoReviewRequest,
     DeploymentRequest,
     EvaluationCaseRequest,
     EvolutionAutoRequest,
@@ -45,12 +46,14 @@ from .api_schemas import (
 from .auth import Principal
 from .config import Settings
 from .demo import BENCHMARK_SNAPSHOT
+from .lab import evaluation_case, evaluation_lab, evolution_lab
 from .github import verify_signature
 from .metrics import metrics
 from .network import TrustedProxyResolver
-from .rate_limit import LoginRateLimiter
+from .rate_limit import LoginRateLimiter, RequestRateLimiter
 from .report import to_markdown
 from .service import ReviewService
+from .sandbox import execute_demo_review
 
 
 WEB_ROOT = Path(__file__).resolve().parent / "web"
@@ -79,7 +82,7 @@ def create_app(
     app = FastAPI(
         title="CodeEvo API",
         description="Evaluation-gated multi-agent code review and controlled evolution API.",
-        version="1.0.0",
+        version="1.1.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -89,6 +92,9 @@ def create_app(
     app.state.login_limiter = LoginRateLimiter(
         config.login_max_attempts, config.login_window_seconds,
         config.login_lockout_seconds,
+    )
+    app.state.demo_limiter = RequestRateLimiter(
+        config.demo_rate_limit, config.demo_rate_window_seconds
     )
     app.state.proxy_resolver = TrustedProxyResolver(config.trusted_proxy_cidrs)
 
@@ -205,6 +211,7 @@ def create_app(
     manage_principal = require("manage")
     audit_principal = require("audit")
     console_principal = require_any("read", "demo_read")
+    sandbox_principal = require_any("review", "demo_execute")
 
     def tenant_dead_letters(tenant_id: str, limit: int) -> list:
         values = review_service.queue.dead_letters(500)
@@ -222,7 +229,7 @@ def create_app(
     @app.get("/api/public-config", tags=["console"])
     def public_config():
         return {
-            "version": "1.0.0",
+            "version": "1.1.0",
             "guest_demo_enabled": bool(config.auth_required and config.guest_demo_enabled),
         }
 
@@ -503,6 +510,62 @@ def create_app(
         if principal.role == "guest" and principal.tenant_id != config.guest_demo_tenant_id:
             raise HTTPException(status_code=403, detail="guest tenant is not authorized")
         return BENCHMARK_SNAPSHOT
+
+    @app.post("/api/demo/reviews", status_code=201, tags=["console", "sandbox"])
+    def demo_review(
+        request: Request, payload: DemoReviewRequest,
+        principal: Principal = Depends(sandbox_principal),
+    ):
+        if principal.role == "guest" and principal.tenant_id != config.guest_demo_tenant_id:
+            raise HTTPException(status_code=403, detail="guest tenant is not authorized")
+        limit_key = (
+            principal.user_id,
+            app.state.proxy_resolver.client_ip(request),
+        )
+        retry_after = app.state.demo_limiter.consume(limit_key)
+        if retry_after:
+            raise HTTPException(
+                status_code=429, detail="public sandbox rate limit exceeded",
+                headers={"Retry-After": str(retry_after)},
+            )
+        return execute_demo_review(
+            payload.sample, payload.diff, payload.github_pr_url,
+            min(config.demo_max_diff_bytes, config.max_diff_bytes),
+        )
+
+    @app.get("/api/lab/evaluation", tags=["evaluation", "console"])
+    def published_evaluation_lab(_principal: Principal = Depends(console_principal)):
+        try:
+            return evaluation_lab()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/api/lab/evaluation/cases/{case_id}", tags=["evaluation", "console"])
+    def published_evaluation_case(
+        case_id: str = ApiPath(min_length=1, max_length=150),
+        _principal: Principal = Depends(console_principal),
+    ):
+        try:
+            return evaluation_case(case_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="evaluation case not found") from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.get("/api/lab/evolution", tags=["evolution", "console"])
+    def published_evolution_lab(_principal: Principal = Depends(console_principal)):
+        try:
+            result = evolution_lab()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if _principal.role != "guest":
+            result["live"] = {
+                "runs": review_service.store.list_evolution_runs(20),
+                "deployment": review_service.store.get_deployment(
+                    _principal.tenant_id, "llm-review"
+                ),
+            }
+        return result
 
     @app.get("/api/skills", tags=["console"])
     def list_skills(principal: Principal = Depends(read_principal)):

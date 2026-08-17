@@ -161,6 +161,9 @@ class Settings:
     guest_demo_enabled: bool = False
     guest_demo_tenant_id: str = "public-demo"
     guest_demo_ttl_seconds: int = 900
+    demo_max_diff_bytes: int = 96 * 1024
+    demo_rate_limit: int = 5
+    demo_rate_window_seconds: int = 3600
 
     def resolved_llm(self) -> Dict[str, object]:
         """Resolve a named provider to the existing OpenAI-compatible transport."""
@@ -420,4 +423,7 @@ class Settings:
                 "CODEEVO_GUEST_DEMO_TENANT_ID", "public-demo"
             ).strip(),
             guest_demo_ttl_seconds=_int("CODEEVO_GUEST_DEMO_TTL_SECONDS", 900),
+            demo_max_diff_bytes=_int("CODEEVO_DEMO_MAX_DIFF_BYTES", 96 * 1024),
+            demo_rate_limit=_int("CODEEVO_DEMO_RATE_LIMIT", 5),
+            demo_rate_window_seconds=_int("CODEEVO_DEMO_RATE_WINDOW_SECONDS", 3600),
         )

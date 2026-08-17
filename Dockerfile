@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.title="CodeEvo" \
       org.opencontainers.image.description="Evaluation-gated multi-agent code review platform" \
       org.opencontainers.image.source="https://github.com/Tches-git/CodeEvo" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.version="1.1.0" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -39,6 +39,10 @@ RUN addgroup --system codeevo \
 COPY --from=builder /wheels /wheels
 RUN python -m pip install /wheels/*.whl && rm -rf /wheels
 COPY --chown=codeevo:codeevo skills /app/skills
+COPY --chown=codeevo:codeevo evaluation_data/vul4j_40.jsonl /app/evaluation_data/vul4j_40.jsonl
+COPY --chown=codeevo:codeevo output/vul4j-benchmark-0.8-validation-final/benchmark-report.json /app/output/vul4j-benchmark-0.8-validation-final/benchmark-report.json
+COPY --chown=codeevo:codeevo output/prompt-evolution-proof/prompt-evolution-proof.json /app/output/prompt-evolution-proof/prompt-evolution-proof.json
+COPY --chown=codeevo:codeevo output/routing-policy-evaluation/routing-policy-report.json /app/output/routing-policy-evaluation/routing-policy-report.json
 
 WORKDIR /app
 USER codeevo

@@ -55,7 +55,7 @@ class SecurityBoundaryTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             auth.verify_installation_state(state[:-1] + ("a" if state[-1] != "a" else "b"))
 
-    def test_guest_session_has_only_demo_read_permission(self):
+    def test_guest_session_has_only_isolated_demo_permissions(self):
         auth = AuthManager(self.store, "s" * 32)
         session = auth.guest_session("public-demo", 120)
         principal = auth.authenticate("Bearer " + session["access_token"])
@@ -63,6 +63,7 @@ class SecurityBoundaryTests(unittest.TestCase):
         self.assertEqual("guest", principal.role)
         self.assertEqual("public-demo", principal.tenant_id)
         self.assertTrue(principal.can("demo_read"))
+        self.assertTrue(principal.can("demo_execute"))
         for permission in ("read", "review", "fix", "manage", "audit"):
             self.assertFalse(principal.can(permission))
 
